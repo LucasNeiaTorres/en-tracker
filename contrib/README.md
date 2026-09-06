@@ -181,11 +181,32 @@ desta máquina já entram sozinhos.
 
 ### No notebook
 
-Nada a fazer: ele continua sendo onde você registra sessão, revisa os cartões e
-publica a semana. O servidor pega tudo pelo Drive.
+Ele continua sendo onde você registra sessão e revisa os cartões. O servidor pega
+tudo pelo Drive, então **o `rsync` não é mais necessário** — se você o tinha
+acrescentado ao `english-tracker-pacote.service`, remova.
 
-Se você tinha acrescentado a linha do `rsync` ao
-`english-tracker-pacote.service`, pode removê-la — ela não é mais necessária.
+Vale habilitar aqui também o timer do pacote, como redundância:
+
+```bash
+cp contrib/english-tracker-pacote.service ~/.config/systemd/user/
+cp contrib/english-tracker-pacote.timer   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now english-tracker-pacote.timer
+```
+
+### Nada disto é requisito
+
+Uma coisa importante sobre o desenho: **nenhuma máquina precisa ficar ligada**
+para o método funcionar. O prompt do dia e a revisão estão no Drive, e o
+professor escreve lá — as duas pontas da sua sessão ignoram este servidor por
+completo.
+
+O que exige uma máquina ligada é: ver o painel (na hora em que você olha) e
+republicar o pacote (uma vez a cada ~7 dias, em qualquer uma das duas). Se as
+duas ficarem semanas desligadas, você roda um comando no notebook e segue — e o
+painel te cobra sozinho, com a pendência "Semana no Drive".
+
+O que **de fato** não pode cair é o Drive. E esse não é seu problema.
 
 ---
 
