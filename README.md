@@ -765,7 +765,7 @@ pip install -e ".[dev]"
 python -m pytest tests/ -q
 ```
 
-149 testes, em oito arquivos:
+171 testes, em nove arquivos:
 
 | Arquivo | O que protege |
 |---|---|
