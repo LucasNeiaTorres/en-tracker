@@ -23,8 +23,7 @@ próxima sessão já com o histórico embutido.
 
 ## Contexto: por que isto existe
 
-O dono do projeto é um desenvolvedor Java/Spring brasileiro. Lê inglês bem, mas
-fala e escreve mal. O plano de estudo (`plano-ingles-30-dias.md`, fora deste
+O plano de estudo (`plano-ingles-30-dias.md`, fora deste
 repositório) tem 30 dias de conversa por voz com uma IA que age como professor:
 corrige pronúncia e gramática na hora, tem personalidade sarcástica e zoa os
 erros de propósito — porque erro com carga emocional gruda mais.
