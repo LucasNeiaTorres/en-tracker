@@ -226,12 +226,12 @@ def _query(service, query: str, page_size: int = 20) -> list[dict]:
 
 def _find(service, name: str) -> dict | None:
     """Resolve o arquivo: id fixado > nome exato > nome aproximado (marcado)."""
-    pinned = config.read_file_id()
+    pinned = config.read_file_id(name)
     if pinned:
         meta = _by_id(service, pinned)
         if meta is not None:
             return meta
-        config.clear_file_id()
+        config.clear_file_id(name)
 
     safe = name.replace("\\", "\\\\").replace("'", "\\'")
     exact = _query(
@@ -285,7 +285,7 @@ def fetch(name: str | None = None) -> RemoteFile:
 
     # Alvo confirmado por leitura: fixa o id para a escrita não ter de adivinhar.
     if not meta.get("_fuzzy") or parse_log(text):
-        config.write_file_id(meta["id"])
+        config.write_file_id(meta["id"], name)
 
     return RemoteFile(
         file_id=meta["id"],
@@ -357,7 +357,7 @@ def push(text: str, name: str | None = None, force: bool = False) -> str:
             .create(body={"name": f"{name}.md"}, media_body=media, fields="id")
             .execute()
         )
-        config.write_file_id(created["id"])
+        config.write_file_id(created["id"], name)
         return created["id"]
 
     if meta.get("mimeType") == "application/vnd.google-apps.document":
@@ -391,7 +391,7 @@ def push(text: str, name: str | None = None, force: bool = False) -> str:
         io.BytesIO(merged.encode("utf-8")), mimetype="text/plain", resumable=False
     )
     service.files().update(fileId=meta["id"], media_body=media).execute()
-    config.write_file_id(meta["id"])
+    config.write_file_id(meta["id"], name)
     write_cache(merged, backup_tag="pos-push")
     return meta["id"]
 

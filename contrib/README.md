@@ -103,6 +103,11 @@ printf 'uma-senha-longa-e-sua' > ~/.english-tracker/senha
 chmod 600 ~/.english-tracker/senha
 ```
 
+> ⚠️ **Se você seguiu uma versão anterior deste guia**, ela mandava gerar o
+> exemplo fictício em `~/.english-tracker/english-log.md`. Apague antes de
+> continuar, senão o painel mostra 11 sessões que nunca existiram:
+> `rm ~/.english-tracker/english-log.md`
+
 **4. Puxar o log de verdade** (é também o teste da chave — tem de funcionar sem
 abrir navegador nenhum):
 

@@ -234,18 +234,53 @@ def caminho(nome: str) -> Path:
     return APP_DIR / nome
 
 
-def read_file_id() -> str | None:
+def read_file_id(nome: str | None = None) -> str | None:
+    """Id fixado, **para aquele nome**.
+
+    O nome importa: sem ele, o id do log seria devolvido para qualquer arquivo
+    pedido — e uma leitura do pacote de prompts traria o log. O formato antigo
+    (só o id, sem nome) é lido como pertencente ao arquivo padrão.
+    """
     arquivo = caminho("file-id")
-    if arquivo.exists():
-        value = arquivo.read_text(encoding="utf-8").strip()
-        return value or None
-    return None
+    if not arquivo.exists():
+        return None
+    bruto = arquivo.read_text(encoding="utf-8").strip()
+    if not bruto:
+        return None
+    alvo = nome or DRIVE_FILE_NAME
+    try:
+        dados = json.loads(bruto)
+    except json.JSONDecodeError:
+        # formato antigo: um id solto, do arquivo padrão
+        return bruto if alvo == DRIVE_FILE_NAME else None
+    return dados.get(alvo) or None
 
 
-def write_file_id(file_id: str) -> None:
+def write_file_id(file_id: str, nome: str | None = None) -> None:
     ensure_app_dir()
-    caminho("file-id").write_text(file_id, encoding="utf-8")
+    arquivo = caminho("file-id")
+    dados: dict[str, str] = {}
+    if arquivo.exists():
+        bruto = arquivo.read_text(encoding="utf-8").strip()
+        if bruto:
+            try:
+                dados = json.loads(bruto)
+            except json.JSONDecodeError:
+                dados = {DRIVE_FILE_NAME: bruto}
+    dados[nome or DRIVE_FILE_NAME] = file_id
+    arquivo.write_text(json.dumps(dados, ensure_ascii=False), encoding="utf-8")
 
 
-def clear_file_id() -> None:
-    caminho("file-id").unlink(missing_ok=True)
+def clear_file_id(nome: str | None = None) -> None:
+    arquivo = caminho("file-id")
+    if nome is None:
+        arquivo.unlink(missing_ok=True)
+        return
+    dados = {}
+    if arquivo.exists():
+        try:
+            dados = json.loads(arquivo.read_text(encoding="utf-8") or "{}")
+        except json.JSONDecodeError:
+            dados = {}
+    dados.pop(nome, None)
+    arquivo.write_text(json.dumps(dados, ensure_ascii=False), encoding="utf-8")

@@ -215,3 +215,31 @@ def test_push_com_conta_de_servico_nao_cria_arquivo(monkeypatch):
         drive.push("DIA 01 — 02/09 — Tipo: D — Tema: x\nErros: a\n")
     assert CHAVE_FALSA["client_email"] in str(erro.value)
     assert servico.criou is None
+
+
+def test_id_fixado_e_por_nome(tmp_path, monkeypatch):
+    """Sem isto, pedir o pacote de prompts devolvia o arquivo do log."""
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    config.write_file_id("id-do-log", "english-log")
+    config.write_file_id("id-do-pacote", "english-prompt")
+
+    assert config.read_file_id("english-log") == "id-do-log"
+    assert config.read_file_id("english-prompt") == "id-do-pacote"
+    assert config.read_file_id("outro-arquivo") is None
+
+
+def test_formato_antigo_do_file_id_continua_valendo(tmp_path, monkeypatch):
+    """Quem já tinha o arquivo com um id solto não pode quebrar."""
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    (tmp_path / "file-id").write_text("id-antigo", encoding="utf-8")
+    assert config.read_file_id("english-log") == "id-antigo"
+    assert config.read_file_id("english-prompt") is None, "id solto é só do log"
+
+
+def test_limpar_um_nome_nao_derruba_o_outro(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    config.write_file_id("a", "english-log")
+    config.write_file_id("b", "english-prompt")
+    config.clear_file_id("english-log")
+    assert config.read_file_id("english-log") is None
+    assert config.read_file_id("english-prompt") == "b"
