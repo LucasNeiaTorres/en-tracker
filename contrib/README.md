@@ -18,7 +18,7 @@ systemctl --user list-timers english-tracker-pacote.timer   # quando roda de nov
 journalctl --user -u english-tracker-pacote.service -n 30   # o que aconteceu
 ```
 
-Se o projeto não estiver em `~/Downloads/english-tracker`, ajuste os dois
+Se o projeto não estiver em `~/pessoal/english-tracker`, ajuste os dois
 `ExecStart` do `.service`.
 
 ### O que vai falhar, e quando
@@ -58,8 +58,8 @@ painel também vai `--somente-leitura`, nada que se faça nele muda coisa alguma
 ### Instalação
 
 ```bash
-git clone git@github.com:SEU-USUARIO/english-tracker.git ~/english-tracker
-cd ~/english-tracker
+git clone git@github.com:SEU-USUARIO/english-tracker.git ~/pessoal/english-tracker
+cd ~/pessoal/english-tracker
 python3 -m venv .venv && ./.venv/bin/pip install -e .
 
 printf 'uma-senha-longa' > ~/.english-tracker/senha

@@ -1,11 +1,11 @@
 [Unit]
 Description=english-tracker: puxa o log e publica o pacote de prompts no Drive
-Documentation=file:%h/Downloads/english-tracker/COMO-USAR.md
+Documentation=file:%h/pessoal/english-tracker/COMO-USAR.md
 
 [Service]
 Type=oneshot
 # O "-" faz o systemd ignorar a falha: sem rede, o pull falha e o pacote ainda
 # é gerado a partir do cache local — melhor um pacote levemente velho do que
 # nenhum.
-ExecStart=-%h/Downloads/english-tracker/.venv/bin/english-tracker pull
-ExecStart=%h/Downloads/english-tracker/.venv/bin/english-tracker prompt --pacote 7 --para-o-drive
+ExecStart=-%h/pessoal/english-tracker/.venv/bin/english-tracker pull
+ExecStart=%h/pessoal/english-tracker/.venv/bin/english-tracker prompt --pacote 7 --para-o-drive

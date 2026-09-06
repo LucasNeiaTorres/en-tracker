@@ -35,11 +35,11 @@ naquele terminal; se você fechou o terminal desde a instalação, o
 
 ```bash
 # ativar o venv neste terminal
-cd ~/Downloads/english-tracker && source .venv/bin/activate
+cd ~/pessoal/english-tracker && source .venv/bin/activate
 english-tracker pull
 
 # ou chamar pelo caminho completo, de qualquer pasta, sem ativar nada
-~/Downloads/english-tracker/.venv/bin/english-tracker pull
+~/pessoal/english-tracker/.venv/bin/english-tracker pull
 ```
 
 A segunda forma é a do dia a dia — e é para encurtar isso que existe o
@@ -50,7 +50,7 @@ A segunda forma é a do dia a dia — e é para encurtar isso que existe o
 ## Parte 1 — Instalar (5 minutos)
 
 ```bash
-cd ~/Downloads/english-tracker
+cd ~/pessoal/english-tracker
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
@@ -395,7 +395,7 @@ em vermelho e manda rodar `push` para devolver ao Drive.
 No `~/.bashrc`:
 
 ```bash
-alias en='~/Downloads/english-tracker/.venv/bin/english-tracker'
+alias en='~/pessoal/english-tracker/.venv/bin/english-tracker'
 alias enp='en prompt'                      # o prompt do dia
 alias enok='en pull && en status'          # a conferência do pós-sessão
 alias enw='en report'                      # o painel como arquivo
@@ -472,7 +472,7 @@ corrigir, publicar a semana seguinte.
 | `O nome "english-log" não casou exatamente ... Não vou sobrescrever` | O arquivo no Drive tem outro nome | Renomear no Drive para `english-log.md` e rodar `pull`; ou `push --force` se tiver certeza do alvo |
 | `... tem conteúdo que não parece um english-log` | O alvo resolvido não é o log | **Não** use `--force` antes de conferir qual arquivo é. Corrija o nome no Drive |
 | `Cache local vazio — nada para enviar` | Nunca houve `pull` nem `add` nesta máquina | `english-tracker pull` |
-| `english-tracker: comando não encontrado` | O venv não está ativo neste terminal | `source ~/Downloads/english-tracker/.venv/bin/activate`, ou use o caminho completo / o alias da Parte 7 |
+| `english-tracker: comando não encontrado` | O venv não está ativo neste terminal | `source ~/pessoal/english-tracker/.venv/bin/activate`, ou use o caminho completo / o alias da Parte 7 |
 | Os botões de ação do painel não fazem nada | Você abriu o arquivo gerado pelo `report`, não o `serve` | Rodar `english-tracker serve` e usar `http://127.0.0.1:8765` |
 | `Address already in use` no `serve` | Já há um servidor na porta | Use o que está aberto, ou `serve --porta 8766` |
 | O navegador não abre no `pull` | Sessão sem interface gráfica, ou navegador padrão não definido | Rodar num terminal do desktop, não por SSH; o programa precisa abrir a página de consentimento uma vez |
