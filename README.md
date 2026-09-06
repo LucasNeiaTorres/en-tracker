@@ -253,6 +253,7 @@ Dentro de `ENGLISH_TRACKER_HOME`:
 | `file-id` | id do arquivo no Drive, fixado na primeira leitura bem-sucedida |
 | `backups/` | cópia datada do conteúdo anterior a cada escrita, dos dois lados |
 | `whatsapp` | número do botão do painel, se preferir arquivo à variável de ambiente |
+| `service-account.json` | chave da conta de serviço, se usada — não expira e vê só o que foi compartilhado com ela |
 | `revisao-local.json` | seus relatos de "errei" e "já revisei hoje" (nunca promovem item) |
 | `pacote.json` | quando a semana foi publicada e que dias ela cobre |
 | `senha` | senha do painel exposto, se usar `--com-senha` (chmod 600) |

@@ -15,12 +15,16 @@ dist/
 /english-tracker*.zip
 
 # Nada que se pareça com credencial deve chegar aqui. O estado real do programa
-# mora em ~/.english-tracker (credentials.json, token*.json, senha, o log), fora
+# mora em ~/.english-tracker (credentials.json, token*.json
+service-account.json
+*-*.iam.gserviceaccount.com.json, senha, o log), fora
 # desta árvore — estas linhas são a segunda barreira, para o caso de alguém
 # copiar um arquivo para cá sem pensar.
 credentials.json
 client_secret*.json
 token*.json
+service-account.json
+*-*.iam.gserviceaccount.com.json
 senha
 revisao-local.json
 pacote.json

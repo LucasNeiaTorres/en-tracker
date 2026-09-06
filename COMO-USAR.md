@@ -413,7 +413,56 @@ en prompt | xclip -selection clipboard     # se tiver xclip instalado
 
 ---
 
-## Parte 8 — Ver o painel de outro computador
+## Parte 8 — Conta de serviço: acabar com a reautorização de 7 dias
+
+O fluxo de login que você configurou na Parte 3 é de **usuário**, e o Google
+expira essa autorização a cada 7 dias enquanto o app está "Em teste". Isso
+incomoda no notebook e **impede** qualquer automação desatendida.
+
+A conta de serviço resolve: ela não pede navegador, não expira, e enxerga **só os
+arquivos que você compartilhar com ela** — mais estreito que o acesso ao Drive
+inteiro que o fluxo de usuário pede hoje.
+
+**1. Criar a conta** — no mesmo projeto do Google Cloud:
+<https://console.cloud.google.com/iam-admin/serviceaccounts> → *Criar conta de
+serviço* → nome qualquer (`painel`) → *Concluir*. Não precisa dar papel nenhum:
+o acesso virá do compartilhamento do arquivo, não de permissão no projeto.
+
+**2. Baixar a chave** — na conta criada, aba *Chaves* → *Adicionar chave* →
+*Criar nova* → **JSON**. Guarde:
+
+```bash
+mv ~/Downloads/painel-*.json ~/.english-tracker/service-account.json
+chmod 600 ~/.english-tracker/service-account.json
+```
+
+**3. Compartilhar os arquivos com ela.** Copie o e-mail da conta (algo como
+`painel@seu-projeto.iam.gserviceaccount.com`) e, no Drive, compartilhe
+`english-log.md` **e** `english-prompt.md` com esse e-mail, como **Editor**,
+desmarcando a notificação — conta de serviço não tem caixa de entrada.
+
+**4. Conferir:**
+
+```bash
+en pull && en status
+```
+
+Deve funcionar **sem abrir navegador**. A partir daqui o programa prefere a conta
+de serviço; o login de usuário continua valendo como alternativa, se a chave não
+existir.
+
+⚠️ **A conta de serviço não cria arquivo para você.** Arquivo criado por ela
+pertence a ela, e não apareceria no seu Drive — por isso o `push` recusa criar e
+manda compartilhar. Os dois arquivos precisam existir e estar compartilhados.
+
+🔑 **A chave é uma credencial de longa duração.** Quem a tiver lê e escreve
+naqueles dois arquivos até você revogá-la (o que se faz apagando a chave no
+console). Ela nunca entra no git: o `.gitignore` já cobre, e o nome do arquivo
+está na lista.
+
+---
+
+## Parte 9 — Ver o painel de outro computador
 
 O painel só escuta nesta máquina por padrão. Para abrir de outro lugar, o
 caminho seguro é **rede privada** — e não hospedagem na internet.
@@ -463,7 +512,7 @@ corrigir, publicar a semana seguinte.
 
 ---
 
-## Parte 9 — Quando der errado
+## Parte 10 — Quando der errado
 
 | Sintoma | Causa | Solução |
 |---|---|---|

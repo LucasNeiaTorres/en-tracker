@@ -62,7 +62,40 @@ class LoadResult:
         return iter((self.text, self.source))
 
 
+def _service_por_conta_de_servico(escopos: list[str]):
+    """Credenciais de conta de serviço, quando houver chave configurada.
+
+    Diferente do OAuth de usuário: sem navegador, sem consentimento, **sem
+    expiração de 7 dias**. E enxerga só o que foi compartilhado com o e-mail da
+    conta — o que é mais estreito, e portanto mais seguro, que o escopo de Drive
+    inteiro que o fluxo de usuário pede.
+    """
+    info = config.service_account_info()
+    if info is None:
+        return None
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+    except ImportError as exc:  # pragma: no cover
+        raise DriveUnavailable(
+            "Bibliotecas do Google ausentes. Rode: pip install -r requirements.txt"
+        ) from exc
+
+    creds = service_account.Credentials.from_service_account_info(info, scopes=escopos)
+    return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+
+def conta_de_servico_email() -> str:
+    info = config.service_account_info()
+    return (info or {}).get("client_email", "")
+
+
 def _service(write: bool = False):
+    escopos_sa = config.DRIVE_SCOPES_WRITE if write else config.DRIVE_SCOPES_READONLY
+    servico = _service_por_conta_de_servico(escopos_sa)
+    if servico is not None:
+        return servico
+
     try:
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
@@ -113,6 +146,13 @@ def check_auth(write: bool = False) -> tuple[bool, str]:
         from google.oauth2.credentials import Credentials
     except ImportError:
         return False, "as bibliotecas do Google não estão instaladas"
+
+    email = conta_de_servico_email()
+    if email:
+        # Conta de serviço não expira nem pede consentimento: se a chave é
+        # válida, está de pé. O que pode faltar é o compartilhamento do arquivo,
+        # e isso aparece na hora de ler, não aqui.
+        return True, f"conta de serviço ({email})"
 
     if not config.CREDENTIALS_PATH.exists():
         return False, f"falta o credentials.json em {config.CREDENTIALS_PATH}"
@@ -298,6 +338,17 @@ def push(text: str, name: str | None = None, force: bool = False) -> str:
     meta = _find(service, name)
 
     if meta is None:
+        email = conta_de_servico_email()
+        if email:
+            # Arquivo criado por conta de serviço pertence a ELA, não a você: não
+            # apareceria no seu Drive e contaria na cota dela. Melhor recusar e
+            # dizer o que fazer.
+            raise DriveRefused(
+                f'Não achei "{name}" entre os arquivos compartilhados com a conta '
+                f"de serviço. Compartilhe o arquivo no Drive com {email} "
+                "(como Editor) — não crie por aqui, porque o arquivo criado por "
+                "ela pertenceria a ela, e não a você."
+            )
         media = MediaIoBaseUpload(
             io.BytesIO(text.encode("utf-8")), mimetype="text/plain", resumable=False
         )

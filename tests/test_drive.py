@@ -8,6 +8,8 @@ desaparecia sem aviso.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from english_tracker import config, drive
@@ -154,3 +156,62 @@ def test_publish_prompt_recusa_arquivo_que_nao_e_o_pacote(monkeypatch):
     with pytest.raises(drive.DriveRefused):
         drive.publish_prompt("PROMPTS DOS DIAS 1 A 7")
     assert servico.atualizou is None
+
+
+# ——— conta de serviço: sem navegador, sem expiração de 7 dias ———
+
+CHAVE_FALSA = {
+    "type": "service_account",
+    "client_email": "painel@projeto.iam.gserviceaccount.com",
+    "private_key_id": "x",
+    "project_id": "projeto",
+}
+
+
+def test_sem_chave_nao_ha_conta_de_servico(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    monkeypatch.setattr(config, "SA_ENV", "")
+    assert config.service_account_info() is None
+    assert drive.conta_de_servico_email() == ""
+
+
+def test_chave_pela_variavel_de_ambiente(monkeypatch):
+    """É assim que um serviço hospedado recebe a chave: o JSON numa variável."""
+    monkeypatch.setattr(config, "SA_ENV", json.dumps(CHAVE_FALSA))
+    assert config.service_account_info()["client_email"] == CHAVE_FALSA["client_email"]
+    assert drive.conta_de_servico_email() == CHAVE_FALSA["client_email"]
+
+
+def test_chave_pelo_arquivo(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    monkeypatch.setattr(config, "SA_ENV", "")
+    (tmp_path / "service-account.json").write_text(json.dumps(CHAVE_FALSA), encoding="utf-8")
+    assert config.service_account_info()["client_email"] == CHAVE_FALSA["client_email"]
+
+
+def test_json_invalido_ou_de_outro_tipo_e_ignorado(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    monkeypatch.setattr(config, "SA_ENV", "isto não é json")
+    assert config.service_account_info() is None
+    monkeypatch.setattr(config, "SA_ENV", json.dumps({"type": "authorized_user"}))
+    assert config.service_account_info() is None, "só aceita type=service_account"
+
+
+def test_check_auth_com_conta_de_servico_nao_fala_em_expiracao(monkeypatch):
+    monkeypatch.setattr(config, "SA_ENV", json.dumps(CHAVE_FALSA))
+    ok, motivo = drive.check_auth(write=True)
+    assert ok is True
+    assert "conta de serviço" in motivo
+    assert "expir" not in motivo, "conta de serviço não expira em 7 dias"
+
+
+def test_push_com_conta_de_servico_nao_cria_arquivo(monkeypatch):
+    """Arquivo criado por conta de serviço pertence a ela, não ao usuário."""
+    pytest.importorskip("googleapiclient")
+    monkeypatch.setattr(config, "SA_ENV", json.dumps(CHAVE_FALSA))
+    servico = _ServicoFalso([])
+    monkeypatch.setattr(drive, "_service", lambda write=False: servico)
+    with pytest.raises(drive.DriveRefused) as erro:
+        drive.push("DIA 01 — 02/09 — Tipo: D — Tema: x\nErros: a\n")
+    assert CHAVE_FALSA["client_email"] in str(erro.value)
+    assert servico.criou is None

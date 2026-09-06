@@ -48,6 +48,30 @@ WHATSAPP_ENV = os.environ.get("ENGLISH_TRACKER_WHATSAPP", "")
 # Nome do arquivo no Google Drive que o professor escreve ao fim de cada sessão.
 DRIVE_FILE_NAME = os.environ.get("ENGLISH_TRACKER_DRIVE_FILE", "english-log")
 
+# Conta de serviço: a alternativa ao OAuth de usuário. Ela não pede navegador e
+# NÃO expira em 7 dias — é o que permite automação desatendida e hospedagem. E o
+# acesso dela é mais estreito que o do OAuth atual: ela só enxerga os arquivos
+# que você compartilhar com o e-mail dela, não o Drive inteiro.
+# A chave vem do arquivo, ou da variável (que é como um serviço hospedado a
+# recebe: o JSON inteiro numa variável de ambiente).
+SA_ENV = os.environ.get("ENGLISH_TRACKER_SA_JSON", "")
+
+
+def service_account_info() -> dict | None:
+    """A chave da conta de serviço, se houver. Variável primeiro, depois arquivo."""
+    bruto = SA_ENV.strip()
+    if not bruto:
+        arquivo = caminho("service-account.json")
+        if not arquivo.exists():
+            return None
+        bruto = arquivo.read_text(encoding="utf-8")
+    try:
+        dados = json.loads(bruto)
+    except json.JSONDecodeError:
+        return None
+    return dados if dados.get("type") == "service_account" else None
+
+
 # Escopo separado por fluxo: ler não precisa de permissão de escrita, e a
 # permissão de escrita no Drive inteiro é justamente o que torna caro um push
 # apontado para o arquivo errado. Cada escopo tem seu próprio token.
