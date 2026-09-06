@@ -8,4 +8,11 @@ WorkingDirectory=%h/pessoal/english-tracker
 # NAT, e abrir porta para ele seria trocar um problema pequeno por um grande.
 ExecStart=/usr/bin/git pull --ff-only
 ExecStart=%h/pessoal/english-tracker/.venv/bin/pip install -e . --quiet
+
+# O portão. Nenhum "-" nestas linhas, de propósito: como o Type é oneshot, uma
+# falha aqui ABORTA os ExecStart seguintes — o restart não acontece e o painel
+# continua servindo a última versão que passou nos próprios testes. Sem isto, um
+# commit quebrado chegaria ao ar em 15 minutos mesmo com o CI vermelho.
+ExecStart=%h/pessoal/english-tracker/.venv/bin/python -m pytest tests/ -q
+
 ExecStart=/usr/bin/systemctl --user restart english-tracker-painel.service
