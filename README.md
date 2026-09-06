@@ -760,7 +760,7 @@ próximo dia.
 ## Testes
 
 ```bash
-pip install pytest
+pip install -e ".[dev]"
 python -m pytest tests/ -q
 ```
 

@@ -75,8 +75,8 @@ mkdir -p ~/pessoal && cd ~/pessoal
 git clone https://github.com/LucasNeiaTorres/en-tracker.git english-tracker
 cd english-tracker
 python3 -m venv .venv
-./.venv/bin/pip install -e .
-./.venv/bin/python -m pytest tests/ -q      # esperado: 151 passed
+./.venv/bin/pip install -e ".[dev]"          # o [dev] traz o pytest
+./.venv/bin/python -m pytest tests/ -q       # esperado: 151 passed
 ```
 
 **3. A senha do painel** (ela é a tranca do acesso pela rede):

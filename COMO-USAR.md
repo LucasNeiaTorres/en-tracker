@@ -59,8 +59,8 @@ pip install -e .
 Confira que subiu inteiro:
 
 ```bash
-pip install pytest
-python -m pytest tests/ -q          # esperado: 50 passed
+pip install -e ".[dev]"             # o [dev] traz o pytest
+python -m pytest tests/ -q          # esperado: 151 passed
 english-tracker --file sample/english-log.md --offline status
 ```
 
