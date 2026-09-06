@@ -1,0 +1,28 @@
+[project]
+name = "english-tracker"
+version = "1.0.0"
+description = "Painel do plano de inglês, alimentado pelo english-log do Google Drive"
+requires-python = ">=3.10"
+dependencies = [
+    "Jinja2>=3.1",
+    "google-api-python-client>=2.120",
+    "google-auth-oauthlib>=1.2",
+    "google-auth>=2.28",
+]
+
+[project.scripts]
+english-tracker = "english_tracker.cli:main"
+
+# sample/ e tests/ não são pacotes: sem isto o setuptools acha dois pacotes de
+# topo e recusa o build, inclusive o `pip install -e .` do README.
+[tool.setuptools.packages.find]
+include = ["english_tracker*"]
+
+# O template Jinja tem de ir no wheel, senão `report` quebra em instalação
+# não-editável.
+[tool.setuptools.package-data]
+english_tracker = ["templates/*.html"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

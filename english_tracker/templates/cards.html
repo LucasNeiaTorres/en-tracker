@@ -1,0 +1,308 @@
+<title>Flashcards — English log</title>
+<style>
+  :root {
+    --paper: #EDEEE8;
+    --sheet: #FCFCF9;
+    --ink: #1E2B31;
+    --pencil: #5A6B72;
+    --faint: #99A39D;
+    --pen: #B3261E;
+    --grow: #3F6B4F;
+    --tech: #2F4F7F;
+    --rule: #D8DBD2;
+    --serif: "Instrument Serif", Georgia, serif;
+    --sans: "Karla", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 2rem 1rem 3rem;
+  }
+
+  header {
+    width: 100%;
+    max-width: 34rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
+  }
+  header h1 { font-family: var(--serif); font-weight: 400; font-size: 1.6rem; margin: 0; }
+  header a { color: var(--pencil); font-size: .85rem; text-decoration: none; border-bottom: 1px solid var(--rule); }
+  header a:hover { color: var(--ink); }
+
+  .contador { font-size: .8rem; color: var(--pencil); font-variant-numeric: tabular-nums; }
+
+  /* ——— o cartão ——— */
+  .card {
+    width: 100%;
+    max-width: 34rem;
+    min-height: 19rem;
+    background: var(--sheet);
+    border: 1px solid var(--rule);
+    padding: 1.8rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .etiqueta {
+    font-size: .72rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--pencil);
+    margin-bottom: 1.4rem;
+  }
+  .etiqueta .atrasado { color: var(--pen); }
+  .etiqueta .caixa { color: var(--faint); }
+
+  .frente {
+    font-family: var(--serif);
+    font-size: 1.9rem;
+    line-height: 1.25;
+    margin: 0 0 1rem;
+  }
+  .tarefa { color: var(--pencil); font-size: .92rem; margin: 0; }
+
+  .verso {
+    margin-top: 1.4rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--rule);
+  }
+  .verso h2 {
+    font-family: var(--sans); font-size: .72rem; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--pencil);
+    margin: 0 0 .4rem;
+  }
+  .verso .certo {
+    font-family: var(--serif); font-size: 1.35rem; color: var(--grow);
+    margin: 0 0 1rem; line-height: 1.3;
+  }
+  .verso .contexto { font-size: .82rem; color: var(--pencil); margin: .2rem 0; }
+  .verso .nota { font-family: var(--serif); font-style: italic; color: var(--pen); }
+
+  .sem-verso { font-size: .9rem; color: var(--pencil); margin: 0 0 .8rem; }
+  .sem-verso b { color: var(--ink); }
+
+  textarea {
+    width: 100%;
+    font-family: var(--sans);
+    font-size: .9rem;
+    min-height: 4rem;
+    padding: .6rem;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    resize: vertical;
+  }
+
+  .acoes {
+    display: flex; flex-wrap: wrap; gap: .5rem;
+    margin-top: auto; padding-top: 1.4rem;
+  }
+  button {
+    font-family: var(--sans); font-size: .9rem; font-weight: 500;
+    padding: .55rem 1.05rem; cursor: pointer;
+    border: 1px solid var(--ink); background: transparent; color: var(--ink);
+  }
+  button:hover { background: var(--ink); color: var(--sheet); }
+  button.principal { background: var(--ink); color: var(--sheet); }
+  button.errei { border-color: var(--pen); color: var(--pen); }
+  button.errei:hover { background: var(--pen); color: var(--sheet); }
+  button.revisado { border-color: var(--grow); color: var(--grow); }
+  button.revisado:hover { background: var(--grow); color: var(--sheet); }
+  button[disabled] { opacity: .45; cursor: progress; }
+
+  .msg { width: 100%; max-width: 34rem; font-size: .82rem; color: var(--pencil); margin: .9rem 0 0; min-height: 1.2rem; }
+  .msg.erro { color: var(--pen); }
+
+  .fim {
+    width: 100%; max-width: 34rem; background: var(--sheet);
+    border: 1px solid var(--rule); padding: 2rem; text-align: center;
+  }
+  .fim h2 { font-family: var(--serif); font-weight: 400; font-size: 1.5rem; margin: 0 0 .6rem; }
+  .fim p { color: var(--pencil); font-size: .92rem; margin: 0 0 1.2rem; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header>
+  <h1>Flashcards</h1>
+  <a href="/">← voltar ao painel</a>
+</header>
+
+<div id="palco"></div>
+<p class="msg" id="msg"></p>
+
+<script type="application/json" id="dados-cards">{{ cards|safe }}</script>
+<script>
+  var TOKEN = {{ token|tojson }};
+  var cards = [];
+  try { cards = JSON.parse(document.getElementById('dados-cards').textContent || '[]'); }
+  catch (e) { cards = []; }
+
+  var indice = 0;
+  var virado = false;
+  var palco = document.getElementById('palco');
+  var msg = document.getElementById('msg');
+
+  function avisar(texto, erro) {
+    msg.textContent = texto || '';
+    msg.className = erro ? 'msg erro' : 'msg';
+  }
+
+  function elemento(tag, classe, texto) {
+    var el = document.createElement(tag);
+    if (classe) el.className = classe;
+    if (texto !== undefined) el.textContent = texto;   // nunca innerHTML: o log é escrito por um modelo
+    return el;
+  }
+
+  function chamar(rota, corpo) {
+    return fetch(rota, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Token': TOKEN},
+      body: JSON.stringify(corpo)
+    }).then(function (r) { return r.json(); });
+  }
+
+  function proximo() {
+    indice += 1;
+    virado = false;
+    desenhar();
+  }
+
+  function desenhar() {
+    palco.textContent = '';
+    if (indice >= cards.length) {
+      var fim = elemento('div', 'fim');
+      fim.appendChild(elemento('h2', null, cards.length ? 'Baralho terminado' : 'Nada vencido hoje'));
+      fim.appendChild(elemento('p', null, cards.length
+        ? 'Os itens voltam conforme a agenda. O que promove de verdade é o professor registrar o acerto na sessão.'
+        : 'A agenda se monta a partir do log. Volte depois da próxima sessão.'));
+      var voltar = elemento('button', 'principal', 'Voltar ao painel');
+      voltar.addEventListener('click', function () { location.href = '/'; });
+      fim.appendChild(voltar);
+      palco.appendChild(fim);
+      return;
+    }
+
+    var c = cards[indice];
+    var card = elemento('div', 'card');
+
+    var etiqueta = elemento('p', 'etiqueta');
+    etiqueta.appendChild(elemento('span', null, (c.classe || c.tipo) + ' · '));
+    etiqueta.appendChild(elemento('span', c.atraso > 3 ? 'atrasado' : null,
+      c.atraso > 0 ? 'vencido há ' + c.atraso + 'd' : 'vence hoje'));
+    etiqueta.appendChild(elemento('span', 'caixa', ' · caixa ' + c.caixa + '/' + c.caixas
+      + ' · ' + (indice + 1) + ' de ' + cards.length));
+    card.appendChild(etiqueta);
+
+    card.appendChild(elemento('p', 'frente', c.frente));
+    card.appendChild(elemento('p', 'tarefa', c.tarefa));
+
+    if (!virado) {
+      var acoes = elemento('div', 'acoes');
+      var virar = elemento('button', 'principal', c.verso ? 'Virar' : 'Ver contexto');
+      virar.addEventListener('click', function () { virado = true; desenhar(); });
+      var pular = elemento('button', null, 'Pular');
+      pular.addEventListener('click', proximo);
+      acoes.appendChild(virar);
+      acoes.appendChild(pular);
+      card.appendChild(acoes);
+      palco.appendChild(card);
+      return;
+    }
+
+    var verso = elemento('div', 'verso');
+    if (c.verso) {
+      verso.appendChild(elemento('h2', null, c.tipo === 'palavra' ? 'Significado' : 'A forma certa'));
+      verso.appendChild(elemento('p', 'certo', c.verso));
+    } else {
+      verso.appendChild(elemento('h2', null, 'Sem gabarito'));
+      var aviso = elemento('p', 'sem-verso');
+      aviso.appendChild(elemento('b', null, 'O professor não registrou a forma certa deste item. '));
+      aviso.appendChild(document.createTextNode(
+        'Escreva você — vai para o log e sobe para o Drive, e o cartão passa a ter verso.'));
+      verso.appendChild(aviso);
+
+      var campo = elemento('textarea');
+      campo.placeholder = c.tipo === 'palavra'
+        ? 'o que a palavra significa'
+        : 'a forma certa, ou uma frase-modelo';
+      verso.appendChild(campo);
+
+      var salvar = elemento('button', 'principal', 'Salvar verso');
+      salvar.style.marginTop = '.6rem';
+      salvar.addEventListener('click', function () {
+        if (!campo.value.trim()) { avisar('Escreva algo antes de salvar.', true); return; }
+        salvar.disabled = true;
+        chamar('/api/verso', {rotulo: c.rotulo, verso: campo.value}).then(function (d) {
+          salvar.disabled = false;
+          if (!d.ok) { avisar(d.erro || 'não deu para salvar', true); return; }
+          c.verso = campo.value.trim();
+          avisar(d.mensagem || 'Verso salvo no log.');
+          desenhar();
+        });
+      });
+      verso.appendChild(salvar);
+    }
+
+    if (c.dias && c.dias.length) {
+      verso.appendChild(elemento('p', 'contexto',
+        'apareceu ' + c.aparicoes + 'x — dias ' + c.dias.join(', ')));
+    }
+    if (c.temas) verso.appendChild(elemento('p', 'contexto', 'sessões: ' + c.temas));
+    if (c.nota) verso.appendChild(elemento('p', 'contexto nota', '“' + c.nota + '”'));
+    card.appendChild(verso);
+
+    var acoes = elemento('div', 'acoes');
+
+    var errei = elemento('button', 'errei', 'Errei');
+    errei.addEventListener('click', function () {
+      errei.disabled = true;
+      chamar('/api/falha', {chave: c.chave}).then(function (d) {
+        errei.disabled = false;
+        avisar(d.ok ? (d.mensagem || 'Volta amanhã.') : (d.erro || 'falhou'), !d.ok);
+        if (d.ok) proximo();
+      });
+    });
+
+    var revisado = elemento('button', 'revisado', 'Já revisei hoje');
+    revisado.addEventListener('click', function () {
+      revisado.disabled = true;
+      chamar('/api/revisado', {chave: c.chave}).then(function (d) {
+        revisado.disabled = false;
+        avisar(d.ok ? (d.mensagem || 'Fora do baralho de hoje.') : (d.erro || 'falhou'), !d.ok);
+        if (d.ok) proximo();
+      });
+    });
+
+    var seguir = elemento('button', null, 'Próximo');
+    seguir.addEventListener('click', proximo);
+
+    acoes.appendChild(errei);
+    acoes.appendChild(revisado);
+    acoes.appendChild(seguir);
+    card.appendChild(acoes);
+    palco.appendChild(card);
+  }
+
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === ' ' || ev.key === 'Enter') {
+      ev.preventDefault();
+      if (!virado) { virado = true; desenhar(); } else { proximo(); }
+    }
+  });
+
+  desenhar();
+</script>

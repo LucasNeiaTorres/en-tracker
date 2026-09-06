@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>English log — dia {{ report.next_day or plan_total }} de {{ plan_total }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #EDEEE8;
+    --sheet: #FCFCF9;
+    --ink: #1E2B31;
+    --pencil: #5A6B72;
+    --faint: #99A39D;
+    --pen: #B3261E;
+    --grow: #3F6B4F;
+    /* caneta azul do aluno: dia tecnico. O vermelho e do professor e so dele. */
+    --tech: #2F4F7F;
+    --rule: #D8DBD2;
+    --serif: "Instrument Serif", Georgia, serif;
+    --sans: "Karla", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 2.5rem 1.25rem 5rem;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .sheet {
+    max-width: 46rem;
+    margin: 0 auto;
+    background: var(--sheet);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 2.5rem 2rem 3rem;
+    box-shadow: 0 1px 0 var(--rule);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 2.75rem;
+    line-height: 1.05;
+    margin: 0 0 .35rem;
+    letter-spacing: -0.01em;
+  }
+
+  .meta {
+    color: var(--pencil);
+    font-size: .875rem;
+    margin: 0 0 2.5rem;
+  }
+
+  .meta .stale { color: var(--pen); }
+
+  h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 1.5rem;
+    margin: 3rem 0 .25rem;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: .4rem;
+  }
+
+  h2:first-of-type { margin-top: 2rem; }
+
+  .lede { color: var(--pencil); font-size: .9rem; margin: .5rem 0 1.25rem; }
+
+  /* ——— folha de chamada ——— */
+  .sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: .35rem;
+    margin: 0 0 1.25rem;
+  }
+
+  .cell {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--rule);
+    background: transparent;
+    font-size: .8rem;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cell.done { background: var(--ink); border-color: var(--ink); color: var(--sheet); }
+  .cell.done.kind-T { background: var(--tech); border-color: var(--tech); }
+  .cell.done.kind-N { background: var(--grow); border-color: var(--grow); }
+  .cell.done.kind-R { background: var(--pencil); border-color: var(--pencil); }
+
+  .cell.illegible {
+    color: var(--pen);
+    border: 1.5px dashed var(--pen);
+    font-weight: 700;
+  }
+  .cell.illegible::after {
+    /* Interrogação na margem da célula, como anotação de professor. */
+    content: "?";
+    position: absolute;
+    bottom: .15rem;
+    right: .3rem;
+    font-size: .7rem;
+    line-height: 1;
+    color: var(--pen);
+  }
+
+  .cell.missing { color: var(--pen); border-color: var(--pen); }
+  .cell.missing::after {
+    content: "";
+    position: absolute;
+    inset: 12%;
+    border-top: 1.5px solid var(--pen);
+    transform: rotate(-45deg);
+    transform-origin: center;
+    height: 0;
+    top: 50%;
+  }
+
+  .cell.next {
+    border: 1.5px solid var(--pen);
+    color: var(--pen);
+    font-weight: 700;
+    border-radius: 50%;
+  }
+
+  .key { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .8rem; color: var(--pencil); }
+  .key span { display: flex; align-items: center; gap: .35rem; }
+  .swatch { width: .7rem; height: .7rem; border: 1px solid var(--rule); display: inline-block; }
+  .swatch.d { background: var(--ink); border-color: var(--ink); }
+  .swatch.t { background: var(--tech); border-color: var(--tech); }
+  .swatch.n { background: var(--grow); border-color: var(--grow); }
+  .swatch.r { background: var(--pencil); border-color: var(--pencil); }
+  .swatch.gap { background: transparent; border: 1.5px solid var(--pen); }
+  .swatch.bad { background: transparent; border: 1.5px dashed var(--pen); }
+
+  /* ——— números ——— */
+  .tally { font-family: var(--serif); font-size: 1.35rem; line-height: 1.5; margin: 1.5rem 0 0; }
+  .tally b { font-weight: 400; font-size: 2.25rem; }
+  .tally .sep { color: var(--rule); padding: 0 .5rem; }
+
+  /* ——— aviso de falha ——— */
+  .alert {
+    border-left: 3px solid var(--pen);
+    padding: .85rem 0 .85rem 1rem;
+    margin: 1.5rem 0 0;
+    color: var(--pen);
+    font-size: .95rem;
+  }
+  .alert strong { font-weight: 700; }
+  .alert p { margin: .35rem 0 0; color: var(--pencil); }
+
+  /* ——— listas ——— */
+  ol.errors, ul.plain { list-style: none; padding: 0; margin: 0; }
+
+  ol.errors li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: .6rem 0;
+    border-bottom: 1px dotted var(--rule);
+  }
+  ol.errors li span.text { flex: 1; }
+  ol.errors li span.marks {
+    color: var(--pen);
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    letter-spacing: .1em;
+    white-space: nowrap;
+  }
+  ol.errors li em { color: var(--faint); font-style: normal; font-size: .8rem; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .chip {
+    border: 1px solid var(--rule);
+    padding: .2rem .55rem;
+    font-size: .82rem;
+    color: var(--pencil);
+  }
+  .chip b { color: var(--pen); font-weight: 500; }
+
+  .vocab { columns: 2; column-gap: 2rem; font-size: .92rem; }
+  .vocab li { break-inside: avoid; padding: .18rem 0; }
+  .vocab li em { color: var(--faint); font-style: normal; font-size: .78rem; }
+
+  /* ——— entradas do log ——— */
+  .entry { padding: 1.1rem 0; border-bottom: 1px solid var(--rule); }
+  .entry:last-child { border-bottom: 0; }
+  .entry header { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+  .entry .day { font-family: var(--serif); font-size: 1.2rem; }
+  .entry .topic { color: var(--pencil); font-size: .9rem; }
+  .entry ul { margin: .5rem 0 0; padding-left: 1.1rem; font-size: .9rem; color: var(--pencil); }
+  .entry .note {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--pen);
+    margin: .55rem 0 0;
+    font-size: 1.05rem;
+  }
+
+  /* ——— próxima sessão ——— */
+  .next-box { border: 1px solid var(--ink); padding: 1.4rem; margin-top: 1rem; }
+  .next-box h3 { font-family: var(--serif); font-weight: 400; font-size: 1.35rem; margin: 0 0 .3rem; }
+  .next-box p { margin: 0 0 1rem; color: var(--pencil); font-size: .92rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+
+  /* ——— pendências: o que precisa da sua atenção ——— */
+  .pendencias { margin: 0 0 1.4rem; }
+  .pendencia {
+    display: flex; flex-wrap: wrap; gap: .7rem; align-items: center;
+    border-left: 3px solid var(--pen);
+    background: var(--sheet);
+    padding: .8rem 1rem;
+    margin-bottom: .5rem;
+  }
+  .pendencia.boa { border-left-color: var(--grow); }
+  .pendencia .txt { flex: 1; min-width: 16rem; font-size: .88rem; line-height: 1.4; }
+  .pendencia .txt b { display: block; font-size: .72rem; letter-spacing: .08em;
+                      text-transform: uppercase; color: var(--pen); margin-bottom: .15rem; }
+  .pendencia.boa .txt b { color: var(--grow); }
+  .pendencia button {
+    font-family: var(--sans); font-size: .85rem; white-space: nowrap;
+    border: 1px solid var(--ink); background: var(--ink); color: var(--sheet);
+    padding: .45rem .9rem; cursor: pointer;
+  }
+  .pendencia button:hover { background: transparent; color: var(--ink); }
+  .pendencia button[disabled] { opacity: .45; cursor: progress; }
+
+  /* ——— barra do modo interativo ——— */
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+    padding: .8rem 0 0;
+    margin: 0 0 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 1rem;
+  }
+  .bar button {
+    font-family: var(--sans);
+    font-size: .85rem;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    padding: .45rem .9rem;
+    cursor: pointer;
+  }
+  .bar button:hover { background: var(--ink); color: var(--sheet); }
+  .bar button[disabled] { opacity: .45; cursor: progress; }
+  .bar .msg { font-size: .82rem; color: var(--pencil); flex-basis: 100%; margin: 0; }
+  .bar .msg.erro { color: var(--pen); }
+
+  /* ——— revisão espaçada ——— */
+  .revisao { list-style: none; padding: 0; margin: .8rem 0 0; }
+  .revisao li {
+    display: flex; align-items: baseline; gap: .6rem;
+    padding: .5rem 0; border-bottom: 1px dotted var(--rule);
+    font-size: .95rem;
+  }
+  .revisao .rot { flex: 1; }
+  .revisao .marca {
+    font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--pencil); white-space: nowrap;
+  }
+  .revisao .marca.atrasado { color: var(--pen); }
+  .revisao .caixa {
+    font-family: var(--sans); font-size: .7rem; color: var(--faint);
+    white-space: nowrap;
+  }
+  .dominados { display: flex; flex-wrap: wrap; gap: .4rem; margin: .8rem 0 0; }
+  .dominados span {
+    font-size: .82rem; padding: .2rem .55rem;
+    border: 1px solid var(--grow); color: var(--grow);
+  }
+
+  /* ——— detalhe do dia ——— */
+  .cell[data-tem-detalhe] { cursor: pointer; }
+  .cell[data-tem-detalhe]:hover { outline: 2px solid var(--pencil); outline-offset: 1px; }
+
+  dialog#detalhe {
+    border: 1px solid var(--ink);
+    background: var(--sheet);
+    color: var(--ink);
+    padding: 1.6rem;
+    max-width: 34rem;
+    width: calc(100% - 2rem);
+    font-family: var(--sans);
+  }
+  dialog#detalhe::backdrop { background: rgba(30, 43, 49, .35); }
+  dialog#detalhe h3 { font-family: var(--serif); font-weight: 400; font-size: 1.5rem; margin: 0 0 .2rem; }
+  dialog#detalhe .quando { color: var(--pencil); font-size: .85rem; margin: 0 0 1.2rem; }
+  dialog#detalhe h4 {
+    font-family: var(--sans); font-size: .72rem; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--pencil);
+    margin: 1.1rem 0 .4rem;
+  }
+  dialog#detalhe ul { margin: 0; padding-left: 1.1rem; font-size: .92rem; }
+  dialog#detalhe li { margin: .2rem 0; }
+  dialog#detalhe .nota {
+    font-family: var(--serif); font-style: italic; color: var(--pen);
+    font-size: 1.05rem; margin: .3rem 0 0;
+  }
+  dialog#detalhe pre.prosa {
+    white-space: pre-wrap; font-size: .82rem; color: var(--pencil);
+    background: var(--paper); padding: .6rem; margin: .3rem 0 0;
+  }
+  dialog#detalhe .rodape {
+    display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+    margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+  }
+  dialog#detalhe button {
+    font-family: var(--sans); font-size: .85rem; padding: .45rem .9rem;
+    border: 1px solid var(--ink); background: transparent; color: var(--ink);
+    cursor: pointer;
+  }
+  dialog#detalhe button.apagar { border-color: var(--pen); color: var(--pen); }
+  dialog#detalhe button.apagar:hover { background: var(--pen); color: var(--sheet); }
+  dialog#detalhe .aviso-apagar { font-size: .8rem; color: var(--pen); flex-basis: 100%; margin: 0; }
+
+  form.registrar { margin: 0 0 1.5rem; }
+  form.registrar summary { font-size: .85rem; color: var(--pencil); cursor: pointer; }
+  form.registrar .campos { display: flex; flex-direction: column; gap: .5rem; margin-top: .8rem; }
+  form.registrar textarea {
+    font-family: ui-monospace, monospace;
+    font-size: .82rem;
+    min-height: 7rem;
+    padding: .6rem;
+    border: 1px solid var(--rule);
+    background: var(--sheet);
+    color: var(--ink);
+    resize: vertical;
+  }
+  form.registrar .linha { display: flex; gap: .5rem; align-items: center; font-size: .85rem; }
+  form.registrar input[type="number"] {
+    width: 5rem;
+    font-family: var(--sans);
+    padding: .4rem;
+    border: 1px solid var(--rule);
+    background: var(--sheet);
+    color: var(--ink);
+  }
+
+  button.copy, button.send {
+    font-family: var(--sans);
+    font-size: .9rem;
+    font-weight: 500;
+    background: var(--ink);
+    color: var(--sheet);
+    border: 1px solid var(--ink);
+    padding: .6rem 1.1rem;
+    cursor: pointer;
+  }
+
+  /* O copiar é a alternativa; o envio é a ação do dia. Sem verde de marca: o
+     painel tem um vocabulário de cor só, e verde aqui é dia de notícia. */
+  button.copy {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .actions .hint {
+    font-size: .78rem;
+    color: var(--pencil);
+    flex-basis: 100%;
+    margin: 0;
+  }
+  button.copy:hover { background: var(--pen); }
+  button.copy:focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
+  pre.prompt {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 1rem;
+    font-size: .78rem;
+    line-height: 1.5;
+    max-height: 18rem;
+    overflow: auto;
+    margin: 1rem 0 0;
+    color: var(--pencil);
+  }
+
+  .empty { color: var(--faint); font-size: .92rem; }
+
+  footer { max-width: 46rem; margin: 1.25rem auto 0; color: var(--faint); font-size: .8rem; }
+
+  @media (max-width: 34rem) {
+    body { padding: 1.25rem .75rem 3rem; }
+    .sheet { padding: 1.5rem 1.1rem 2rem; }
+    h1 { font-size: 2.1rem; }
+    .sheet-grid { grid-template-columns: repeat(6, 1fr); }
+    .vocab { columns: 1; }
+    .tally b { font-size: 1.9rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+
+  <h1>English log</h1>
+  <p class="meta">
+    {{ report.total_sessions }} de {{ plan_total }} sessões registradas ·
+    lido {% if source == 'drive' %}do Google Drive{% elif source == 'drive+cache' %}<span class="stale">do Drive fundido com o cache local — o Drive perdeu dias</span>{% elif source == 'arquivo' %}de um arquivo local{% else %}do cache local{% endif %}{% if sincronizado %} · sincronizado {{ sincronizado }}{% elif source != 'arquivo' %} · <span class="stale">nunca sincronizado com o Drive</span>{% endif %} ·
+    {{ report.generated_at.strftime('%d/%m/%Y') }}
+  </p>
+
+  {% if interactive %}
+  <div class="pendencias" id="pendencias">
+    {% if pacote.estado != 'ok' %}
+    <div class="pendencia">
+      <span class="txt"><b>Semana no Drive</b>{{ pacote.texto }}</span>
+      <button class="publicar-semana">Publicar a semana</button>
+    </div>
+    {% else %}
+    <div class="pendencia boa">
+      <span class="txt"><b>Semana no Drive</b>{{ pacote.texto }}</span>
+      <button class="publicar-semana">Republicar</button>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="bar" data-token="{{ token }}">
+    <button id="acao-pull" data-rota="/api/pull">Puxar do Drive</button>
+    <button id="acao-push" data-rota="/api/push">Enviar ao Drive</button>
+    <button id="acao-reload">Atualizar</button>
+    <button id="acao-cards">Flashcards</button>
+    <button id="acao-semana">A semana</button>
+    <p class="msg" id="bar-msg">As ações do terminal estão aqui. Nada é enviado ao Drive sem você clicar.</p>
+  </div>
+
+  <form class="registrar" id="form-add" onsubmit="return false;">
+    <details>
+      <summary>Registrar sessão à mão (quando o professor não salvou)</summary>
+      <div class="campos">
+        <div class="linha">
+          <label for="add-dia">Dia</label>
+          <input type="number" id="add-dia" min="1" max="{{ plan_total }}"
+                 value="{{ report.next_day or '' }}">
+          <button type="submit" id="acao-add">Registrar</button>
+        </div>
+        <textarea id="add-texto" placeholder="Cole o resumo do professor. Se não estiver no formato, o texto é guardado como prosa e nada se perde."></textarea>
+      </div>
+    </details>
+  </form>
+  {% endif %}
+
+  {% if warnings %}
+  <div class="alert">
+    <strong>Atenção</strong>
+    {% for aviso in warnings %}
+    <p>{{ aviso }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>Folha de chamada</h2>
+  <p class="lede">Cada quadrado é um dia do plano. Cortado a vermelho é dia que o professor deveria ter registrado e não registrou; tracejado com <b>?</b> é dia que ele registrou num formato que não deu para ler.</p>
+
+  <div class="sheet-grid">
+    {% for day in days %}
+    <div class="cell {{ day.state }} kind-{{ day.kind }}"
+         {% if day.state in ('done', 'illegible') %}data-tem-detalhe="1" data-dia="{{ day.day }}" role="button" tabindex="0"{% endif %}
+         title="Dia {{ day.day }} — {{ day.kind_label }} — {{ day.topic }}">{{ day.day }}</div>
+    {% endfor %}
+  </div>
+
+  <dialog id="detalhe">
+    <h3 id="d-titulo">Dia</h3>
+    <p class="quando" id="d-quando"></p>
+    <div id="d-corpo"></div>
+    <div class="rodape">
+      <button id="d-fechar">Fechar</button>
+      {% if interactive %}
+      <button class="apagar" id="d-apagar">Apagar este dia</button>
+      <p class="aviso-apagar" id="d-aviso" hidden></p>
+      {% endif %}
+    </div>
+  </dialog>
+
+  <script type="application/json" id="dados-dias">{{ detalhes|safe }}</script>
+
+  <div class="key">
+    <span><i class="swatch d"></i>dia a dia</span>
+    <span><i class="swatch t"></i>técnico</span>
+    <span><i class="swatch n"></i>notícia</span>
+    <span><i class="swatch r"></i>revisão</span>
+    <span><i class="swatch gap"></i>buraco: o professor não registrou</span>
+    <span><i class="swatch bad"></i>registrado, mas ilegível</span>
+  </div>
+
+  <p class="tally">
+    <b>{{ report.current_streak }}</b> dia{{ '' if report.current_streak == 1 else 's' }} seguido{{ '' if report.current_streak == 1 else 's' }}
+    <span class="sep">/</span>
+    <b>{{ report.total_errors }}</b> correç{{ 'ão' if report.total_errors == 1 else 'ões' }}
+    <span class="sep">/</span>
+    <b>{{ report.vocab_count }}</b> palavra{{ '' if report.vocab_count == 1 else 's' }} nova{{ '' if report.vocab_count == 1 else 's' }}
+  </p>
+
+  {% if report.has_gaps %}
+  <div class="alert">
+    <strong>{% if report.missing_days | length == 1 %}Dia {{ report.missing_days[0] }} sem registro{% else %}{{ report.missing_days | length }} dias sem registro: {{ report.missing_days | join(', ') }}{% endif %}</strong>
+    <p>Ou você pulou a sessão, ou o professor disse que salvou no Drive e não salvou. Se você fez, registre com <code>english-tracker add</code>.</p>
+  </div>
+  {% endif %}
+
+  {% if report.illegible_days %}
+  <div class="alert">
+    <strong>{{ report.illegible_days | length }} dia{{ '' if report.illegible_days | length == 1 else 's' }} registrado{{ '' if report.illegible_days | length == 1 else 's' }}, mas ilegível{{ '' if report.illegible_days | length == 1 else 'is' }}: {{ report.illegible_days | join(', ') }}</strong>
+    <p>Há cabeçalho <code>DIA</code> no log, mas nenhum erro, palavra nova ou nota que o parser tenha aproveitado — o professor escreveu num formato que não deu para ler. Não conta como sessão feita. Reescreva com <code>english-tracker add</code>.</p>
+  </div>
+  {% endif %}
+
+  {% if report.unknown_days %}
+  <div class="alert">
+    <strong>Dia fora do plano: {{ report.unknown_days | join(', ') }}</strong>
+    <p>O log tem entrada para um dia que não existe no plano de {{ plan_total }} dias. Número provavelmente errado; não entra nas estatísticas.</p>
+  </div>
+  {% endif %}
+
+  <h2>Revisão de hoje</h2>
+  {% if report.vencidos %}
+  <p class="lede">Repetição espaçada montada a partir do próprio log: item errado volta logo, item acertado se afasta. Diga cada um em voz alta, numa frase sua — no terminal, {% if interactive %}<a href="/cards">abrir os flashcards</a>{% else %}<code>english-tracker deck</code>{% endif %}.</p>
+  <ol class="revisao">
+    {% for item in report.vencidos[:6] %}
+    {% set atraso = item.atraso(report.generated_at) %}
+    <li>
+      <span class="rot">{{ item.rotulo }}</span>
+      <span class="marca {% if atraso > 3 %}atrasado{% endif %}">
+        {{ item.classe or item.tipo }} · {% if atraso > 0 %}vencido há {{ atraso }}d{% else %}vence hoje{% endif %}
+      </span>
+      <span class="caixa">caixa {{ item.caixa }}/{{ item.escala | length }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% if report.vencidos | length > 6 %}
+  <p class="lede">A fila tem {{ report.vencidos | length }} vencidos. Faça estes seis hoje; fila longa não se revisa.</p>
+  {% endif %}
+  {% else %}
+  <p class="empty">Nada vencido hoje. A agenda se monta a partir dos erros e das palavras do log — e avança quando o professor registra <code>Acertos:</code> e <code>Reusou:</code>.</p>
+  {% endif %}
+
+  {% if report.dominados %}
+  <h2>Dominados</h2>
+  <p class="lede">Sobreviveram a todos os intervalos sem reaparecer como erro. É a única medida de progresso do painel: não o que você fez, o que deixou de errar.</p>
+  <div class="dominados">
+    {% for item in report.dominados %}
+    <span>{{ item.rotulo }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>Erros que se repetem</h2>
+  {% if report.top_errors %}
+  <p class="lede">Ordenado por quantas vezes o mesmo erro voltou. Os de cima entram sozinhos no prompt do próximo dia.</p>
+  <ol class="errors">
+    {% for group in report.top_errors %}
+    <li>
+      <span class="text">{{ group.label }} <em>dia{{ '' if group.days | length == 1 else 's' }} {{ group.days | join(', ') }}</em></span>
+      <span class="marks">{% if group.count > 5 %}{{ group.count }}&#215;{% else %}{{ '|' * group.count }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty">Nada registrado ainda. Depois da primeira sessão isso preenche sozinho.</p>
+  {% endif %}
+
+  {% if report.por_classe %}
+  <h2>Onde o inglês falha</h2>
+  <p class="lede">Correções por classe. Pronúncia é a que decai mais rápido, a que só a sessão de voz corrige — e por isso a que tem intervalos mais curtos na agenda.</p>
+  <div class="chips">
+    {% for classe, quantas in report.por_classe | dictsort(by='value', reverse=true) %}
+    <span class="chip">{{ classe }} <b>{{ quantas }}</b></span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if report.error_themes %}
+  <h2>Padrões por trás dos erros</h2>
+  <p class="lede">Palavras que mais aparecem nas suas correções. Servem para escolher o que estudar na revisão.</p>
+  <div class="chips">
+    {% for word, count in report.error_themes %}
+    <span class="chip">{{ word }} <b>{{ count }}</b></span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>Vocabulário acumulado</h2>
+  {% if report.vocab %}
+  <ul class="plain vocab">
+    {% for item in report.vocab %}
+    <li>{{ item.word }} <em>d{{ item.first_day }}</em></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">Vazio por enquanto.</p>
+  {% endif %}
+
+  <h2>Últimas sessões</h2>
+  {% if recent %}
+  {% for entry in recent %}
+  <div class="entry">
+    <header>
+      <span class="day">Dia {{ '%02d' % entry.day }}</span>
+      <span class="topic">{{ entry.topic or 'sem tema registrado' }}</span>
+    </header>
+    {% if entry.errors %}
+    <ul>{% for err in entry.errors %}<li>{{ err }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if entry.note %}<p class="note">{{ entry.note }}</p>{% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="empty">Nenhuma sessão no arquivo.</p>
+  {% endif %}
+
+  {% if next_plan %}
+  <h2>Próxima sessão</h2>
+  <div class="next-box">
+    <h3>Dia {{ next_plan.day }} · {{ next_plan.kind_label }}</h3>
+    <p>{{ next_plan.topic }}{% if next_plan.track %} — trilha: {{ next_plan.track }}{% endif %}</p>
+    <div class="actions">
+      <button class="send" id="whats" data-numero="{{ whatsapp }}">Enviar para o WhatsApp</button>
+      <button class="copy" id="copy" data-label="Copiar prompt">Copiar prompt</button>
+      <p class="hint">
+        {% if whatsapp %}
+        Abre o WhatsApp já com o prompt digitado na conversa com o número {{ whatsapp }} — confira e envie.
+        {% else %}
+        Abre o WhatsApp com o prompt digitado e você escolhe a conversa: use <b>Conversar comigo mesmo</b>. Para ir direto, defina o número em <code>ENGLISH_TRACKER_WHATSAPP</code> (só dígitos, com o 55).
+        {% endif %}
+      </p>
+    </div>
+    <pre class="prompt" id="prompt">{{ next_prompt }}</pre>
+  </div>
+  {% else %}
+  <h2>Plano concluído</h2>
+  <p class="empty">Trinta dias registrados. Grave três minutos falando livremente e compare com o dia 1.</p>
+  {% endif %}
+
+</main>
+
+<footer>Gerado por english-tracker. O arquivo no Drive continua sendo a fonte da verdade.</footer>
+
+<script>
+  // ——— modo interativo: as ações do terminal, sem terminal ———
+  var bar = document.querySelector('.bar');
+  if (bar) {
+    var msg = document.getElementById('bar-msg');
+    var token = bar.dataset.token;
+
+    function avisar(texto, erro) {
+      msg.textContent = texto;
+      msg.className = erro ? 'msg erro' : 'msg';
+    }
+
+    function chamar(rota, corpo, botao) {
+      var antes = botao ? botao.textContent : '';
+      if (botao) { botao.disabled = true; botao.textContent = 'aguarde…'; }
+      avisar('Executando…', false);
+      return fetch(rota, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Token': token},
+        body: JSON.stringify(corpo || {})
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (botao) { botao.disabled = false; botao.textContent = antes; }
+        if (!d.ok) { avisar(d.erro || 'falhou', true); return; }
+        var texto = d.mensagem || 'Pronto.';
+        if (d.avisos && d.avisos.length) { texto += ' ' + d.avisos.join(' '); }
+        avisar(texto + ' Atualizando…', false);
+        // Recarrega para o painel refletir o arquivo, não a memória do navegador.
+        setTimeout(function () { location.reload(); }, 1200);
+      }).catch(function (e) {
+        if (botao) { botao.disabled = false; botao.textContent = antes; }
+        avisar('Erro de comunicação com o servidor: ' + e, true);
+      });
+    }
+
+    // ——— pendências ———
+    var caixaPend = document.getElementById('pendencias');
+
+    function pendencia(titulo, texto, rotulo, aoClicar, boa) {
+      var div = document.createElement('div');
+      div.className = 'pendencia' + (boa ? ' boa' : '');
+      var span = document.createElement('span');
+      span.className = 'txt';
+      var b = document.createElement('b');
+      b.textContent = titulo;
+      span.appendChild(b);
+      span.appendChild(document.createTextNode(texto));
+      div.appendChild(span);
+      if (rotulo) {
+        var bt = document.createElement('button');
+        bt.textContent = rotulo;
+        bt.addEventListener('click', function () { aoClicar(bt); });
+        div.appendChild(bt);
+      }
+      caixaPend.insertBefore(div, caixaPend.firstChild);
+      return div;
+    }
+
+    function publicarSemana(botao) {
+      var antes = botao.textContent;
+      botao.disabled = true; botao.textContent = 'publicando…';
+      chamar('/api/pacote', {dias: 7}, null).then(function () {
+        botao.disabled = false; botao.textContent = antes;
+      });
+    }
+    document.querySelectorAll('button.publicar-semana').forEach(function (b) {
+      b.addEventListener('click', function () { publicarSemana(b); });
+    });
+
+    // A autorização do Google expira em 7 dias enquanto o app está "Em teste".
+    // Descobrir isso pelo pacote que parou de atualizar é tarde demais.
+    fetch('/api/saude', {headers: {'X-Token': token}})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok || d.offline) return;
+        var quebradas = [];
+        if (d.leitura && !d.leitura.ok) quebradas.push(['leitura', false, d.leitura.motivo]);
+        if (d.escrita && !d.escrita.ok) quebradas.push(['escrita', true, d.escrita.motivo]);
+        if (!quebradas.length) return;
+
+        // Ler e escrever são dois consentimentos separados no Google, mas duas
+        // caixas vermelhas com o mesmo texto é ruído: quando as duas caem, vira
+        // um item só e o botão refaz as duas em sequência.
+        var titulo = quebradas.length === 2
+          ? 'Autorização do Google'
+          : 'Autorização de ' + quebradas[0][0];
+        var texto = quebradas[0][2] +
+          '. Sem isto, o pacote da semana e o registro das sessões param de chegar ao Drive.';
+
+        pendencia(titulo, texto, 'Renovar agora', function (bt) {
+          var antes = bt.textContent;
+          bt.disabled = true;
+          bt.textContent = 'abrindo o navegador…';
+          avisar('Uma aba do Google vai abrir' +
+                 (quebradas.length === 2 ? ' (duas vezes: leitura e escrita)' : '') +
+                 '. Autorize e volte aqui.');
+
+          var fila = quebradas.slice();
+          (function proxima() {
+            if (!fila.length) {
+              bt.disabled = false;
+              bt.textContent = antes;
+              avisar('Autorização renovada. Atualizando…');
+              setTimeout(function () { location.reload(); }, 1200);
+              return;
+            }
+            var atual = fila.shift();
+            fetch('/api/autorizar', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json', 'X-Token': token},
+              body: JSON.stringify({escrita: atual[1]})
+            }).then(function (r) { return r.json(); }).then(function (res) {
+              if (!res.ok) {
+                bt.disabled = false;
+                bt.textContent = antes;
+                avisar(res.erro || 'não deu para renovar', true);
+                return;
+              }
+              proxima();
+            }).catch(function (e) {
+              bt.disabled = false;
+              bt.textContent = antes;
+              avisar('Erro ao renovar: ' + e, true);
+            });
+          })();
+        });
+      })
+      .catch(function () { /* sem rede: o painel continua servindo do cache */ });
+
+    ['acao-pull', 'acao-push'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) b.addEventListener('click', function () { chamar(b.dataset.rota, {}, b); });
+    });
+
+    var recarregar = document.getElementById('acao-reload');
+    if (recarregar) recarregar.addEventListener('click', function () { location.reload(); });
+
+    var paraCards = document.getElementById('acao-cards');
+    if (paraCards) paraCards.addEventListener('click', function () { location.href = '/cards'; });
+
+    var paraSemana = document.getElementById('acao-semana');
+    if (paraSemana) paraSemana.addEventListener('click', function () { location.href = '/semana'; });
+
+    var form = document.getElementById('form-add');
+    if (form) form.addEventListener('submit', function () {
+      var texto = document.getElementById('add-texto').value;
+      var dia = document.getElementById('add-dia').value;
+      if (!texto.trim()) { avisar('Nada colado — nada foi registrado.', true); return; }
+      chamar('/api/add', {dia: dia, texto: texto}, document.getElementById('acao-add'));
+    });
+  }
+
+  // ——— detalhe do dia: clicar na célula e ver o que foi feito ———
+  var dados = {};
+  try {
+    dados = JSON.parse(document.getElementById('dados-dias').textContent || '{}');
+  } catch (e) { dados = {}; }
+
+  var dlg = document.getElementById('detalhe');
+  var diaAberto = null;
+
+  function lista(titulo, itens) {
+    if (!itens || !itens.length) return null;
+    var h = document.createElement('h4');
+    h.textContent = titulo;
+    var ul = document.createElement('ul');
+    itens.forEach(function (item) {
+      var li = document.createElement('li');
+      li.textContent = item;   // textContent: o log é escrito por um modelo
+      ul.appendChild(li);
+    });
+    var frag = document.createDocumentFragment();
+    frag.appendChild(h); frag.appendChild(ul);
+    return frag;
+  }
+
+  function abrirDia(numero) {
+    var d = dados[String(numero)];
+    if (!d || !dlg) return;
+    diaAberto = numero;
+
+    document.getElementById('d-titulo').textContent =
+      'Dia ' + d.dia + (d.tipo ? ' · ' + d.tipo : '');
+    var partes = [];
+    if (d.data) partes.push(d.data);
+    if (d.tema) partes.push(d.tema);
+    if (!d.no_plano) partes.push('fora do plano');
+    if (d.status !== 'ok') partes.push('registrado, mas ilegível');
+    document.getElementById('d-quando').textContent = partes.join(' — ');
+
+    var corpo = document.getElementById('d-corpo');
+    corpo.textContent = '';
+    var erros = lista('Erros corrigidos', d.erros);
+    if (erros) corpo.appendChild(erros);
+    var vocab = lista('Palavras novas', d.vocab);
+    if (vocab) corpo.appendChild(vocab);
+    if (d.nota) {
+      var h = document.createElement('h4'); h.textContent = 'Nota do professor';
+      var p = document.createElement('p'); p.className = 'nota'; p.textContent = '“' + d.nota + '”';
+      corpo.appendChild(h); corpo.appendChild(p);
+    }
+    if (d.extra) {
+      var he = document.createElement('h4'); he.textContent = 'Texto não interpretado';
+      var pre = document.createElement('pre'); pre.className = 'prosa'; pre.textContent = d.extra;
+      corpo.appendChild(he); corpo.appendChild(pre);
+    }
+    if (!d.erros.length && !d.vocab.length && !d.nota && !d.extra) {
+      var vazio = document.createElement('p');
+      vazio.textContent = 'Nada foi aproveitado deste dia — o professor escreveu num formato que não deu para ler.';
+      corpo.appendChild(vazio);
+    }
+
+    var aviso = document.getElementById('d-aviso');
+    if (aviso) { aviso.hidden = true; aviso.textContent = ''; }
+    var botaoApagar = document.getElementById('d-apagar');
+    if (botaoApagar) botaoApagar.textContent = 'Apagar este dia';
+    dlg.showModal();
+  }
+
+  document.querySelectorAll('.cell[data-tem-detalhe]').forEach(function (cel) {
+    cel.addEventListener('click', function () { abrirDia(cel.dataset.dia); });
+    cel.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirDia(cel.dataset.dia); }
+    });
+  });
+
+  var fechar = document.getElementById('d-fechar');
+  if (fechar) fechar.addEventListener('click', function () { dlg.close(); });
+
+  var apagar = document.getElementById('d-apagar');
+  if (apagar) apagar.addEventListener('click', function () {
+    var aviso = document.getElementById('d-aviso');
+    // Duas etapas: o primeiro clique explica o que vai acontecer, o segundo faz.
+    if (apagar.textContent !== 'Confirmar: apagar') {
+      apagar.textContent = 'Confirmar: apagar';
+      aviso.hidden = false;
+      aviso.textContent = 'O dia sai do log local e, como remoção não se propaga por fusão, ' +
+                          'o arquivo do Drive é SUBSTITUÍDO pelo local. Há backup automático antes.';
+      return;
+    }
+    apagar.disabled = true;
+    apagar.textContent = 'apagando…';
+    fetch('/api/remove', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Token': document.querySelector('.bar').dataset.token},
+      body: JSON.stringify({dia: diaAberto})
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      apagar.disabled = false;
+      if (!d.ok) { aviso.textContent = d.erro || 'falhou'; apagar.textContent = 'Apagar este dia'; return; }
+      aviso.textContent = (d.mensagem || 'Apagado.') + ' Atualizando…';
+      setTimeout(function () { location.reload(); }, 1400);
+    }).catch(function (e) {
+      apagar.disabled = false;
+      apagar.textContent = 'Apagar este dia';
+      aviso.textContent = 'Erro de comunicação: ' + e;
+    });
+  });
+
+  // Levar o prompt para o celular: wa.me abre o WhatsApp (Web no desktop, app no
+  // telefone) com o texto já digitado. Não é API do WhatsApp, é link de conversa
+  // — nada é enviado sem você apertar enviar.
+  var whats = document.getElementById('whats');
+  if (whats) {
+    whats.addEventListener('click', function () {
+      var texto = document.getElementById('prompt').textContent;
+      var numero = whats.dataset.numero || '';
+      var url = 'https://wa.me/' + numero + '?text=' + encodeURIComponent(texto);
+      window.open(url, '_blank', 'noopener');
+    });
+  }
+
+  var button = document.getElementById('copy');
+  if (button) {
+    button.addEventListener('click', function () {
+      var text = document.getElementById('prompt').textContent;
+      navigator.clipboard.writeText(text).then(function () {
+        button.textContent = 'Copiado';
+        setTimeout(function () { button.textContent = button.dataset.label; }, 2000);
+      }, function () {
+        button.textContent = 'Não deu — selecione o texto abaixo';
+      });
+    });
+  }
+</script>
+</body>
+</html>

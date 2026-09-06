@@ -1,0 +1,541 @@
+"""Modo interativo: o painel deixa de ser folha impressa e passa a ter botões.
+
+Um arquivo estático aberto em `file://` não lê o log, não fala com o Drive e não
+executa Python. Para o HTML *fazer* as coisas que o terminal faz, algo tem de
+escutar do outro lado — e é só isso que este módulo é: um servidor HTTP local,
+minúsculo, que expõe as mesmas funções da CLI.
+
+Três decisões, todas por segurança, porque estes endpoints escrevem no seu Drive:
+
+1. **Só `127.0.0.1`.** Nunca `0.0.0.0`: ninguém na rede alcança.
+2. **Token por execução.** Gerado a cada `serve`, embutido na página servida e
+   exigido em toda chamada de API. Sem isso, qualquer página aberta no seu
+   navegador poderia disparar uma escrita no seu Drive por trás.
+3. **Confere o `Host`.** Requisição que chega com outro host é recusada — é a
+   defesa contra DNS rebinding, em que um site externo resolve um domínio para
+   127.0.0.1 e passa a conversar com o servidor local.
+
+Sem dependência nova: `http.server` da biblioteca padrão. O projeto tem quatro
+dependências e não precisa de uma quinta para servir seis rotas.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import secrets
+import threading
+import time
+import webbrowser
+from collections import defaultdict
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+from . import analytics, config, drive, plan, prompt as prompt_mod, report as report_mod
+from .parser import (
+    Entry,
+    parse_log,
+    parse_session,
+    remove_day,
+    render_entry,
+    set_verso,
+)
+
+HOSTS_LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+LIMITE_CORPO = 256 * 1024
+
+# Freio de força bruta na senha: 10 erros em 5 minutos e a origem para.
+MAX_TENTATIVAS = 10
+JANELA_TENTATIVAS = 300
+
+# Rotas que MUDAM algo — no log, no Drive ou na autorização. São elas que o modo
+# somente-leitura recusa, e são a razão de o painel não poder ser publicado na
+# internet aberta: o token que as protege é servido dentro da própria página.
+ROTAS_DE_ESCRITA = frozenset({
+    "/api/pull", "/api/push", "/api/add", "/api/remove",
+    "/api/falha", "/api/revisado", "/api/verso",
+    "/api/pacote", "/api/autorizar",
+})
+
+
+class Estado:
+    """O que o servidor precisa saber, e que não cabe no handler."""
+
+    def __init__(
+        self,
+        token: str,
+        offline: bool = False,
+        somente_leitura: bool = False,
+        hosts: set[str] | None = None,
+        senha: str = "",
+    ) -> None:
+        self.token = token
+        self.offline = offline
+        self.somente_leitura = somente_leitura
+        self.hosts = (hosts or set()) | HOSTS_LOOPBACK
+        self.senha = senha
+        self.lock = threading.Lock()
+        # Tentativas de senha por origem. Um painel exposto é varrido por robô em
+        # horas; sem freio, a senha vira questão de tempo.
+        self.tentativas: dict[str, list[float]] = defaultdict(list)
+
+    def bloqueado(self, origem: str) -> bool:
+        agora = time.time()
+        recentes = [t for t in self.tentativas[origem] if agora - t < JANELA_TENTATIVAS]
+        self.tentativas[origem] = recentes
+        return len(recentes) >= MAX_TENTATIVAS
+
+    def errou(self, origem: str) -> None:
+        self.tentativas[origem].append(time.time())
+
+    def carregar(self, remoto: bool = False) -> tuple[analytics.Report, drive.LoadResult]:
+        """Lê o log. Por padrão do CACHE, sem rede.
+
+        O painel renderiza do cache de propósito: se cada carregamento de página
+        fosse ao Drive, "Atualizar" e "Puxar do Drive" seriam a mesma coisa, e
+        cada recarregamento pagaria uma ida à rede. Assim a página é instantânea
+        e a sincronização é um ato explícito, com o carimbo de quando ocorreu
+        visível no cabeçalho.
+        """
+        resultado = drive.load(prefer_remote=remoto and not self.offline)
+        return analytics.build_report(parse_log(resultado.text)), resultado
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "english-tracker"
+    estado: Estado
+
+    # --- infraestrutura -------------------------------------------------
+
+    def log_message(self, *args) -> None:  # silencia o log de acesso
+        pass
+
+    def _host_ok(self) -> bool:
+        host = (self.headers.get("Host") or "").split(":")[0].strip("[]")
+        return host in self.estado.hosts
+
+    def _senha_ok(self) -> bool:
+        """HTTP Basic. Só entra em cena quando há senha configurada.
+
+        A senha é a tranca do acesso remoto; o token continua sendo a tranca
+        contra outra aba do navegador. São coisas diferentes e ambas ficam.
+        """
+        if not self.estado.senha:
+            return True
+
+        origem = self.client_address[0]
+        if self.estado.bloqueado(origem):
+            self._json({"ok": False, "erro": "tentativas demais — espere alguns minutos"}, 429)
+            return False
+
+        cabecalho = self.headers.get("Authorization") or ""
+        if cabecalho.startswith("Basic "):
+            try:
+                cru = base64.b64decode(cabecalho[6:]).decode("utf-8")
+                _, _, fornecida = cru.partition(":")
+            except Exception:
+                fornecida = ""
+            if secrets.compare_digest(fornecida, self.estado.senha):
+                return True
+            self.estado.errou(origem)
+
+        corpo = b"Senha necessaria."
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="english-tracker"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(corpo)))
+        self.end_headers()
+        self.wfile.write(corpo)
+        return False
+
+    def _token_ok(self) -> bool:
+        enviado = self.headers.get("X-Token") or ""
+        return secrets.compare_digest(enviado, self.estado.token)
+
+    def _json(self, dados: dict, status: int = 200) -> None:
+        corpo = json.dumps(dados, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(corpo)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(corpo)
+
+    def _html(self, texto: str, status: int = 200) -> None:
+        corpo = texto.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(corpo)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(corpo)
+
+    def _corpo_json(self) -> dict:
+        tamanho = int(self.headers.get("Content-Length") or 0)
+        if tamanho <= 0:
+            return {}
+        if tamanho > LIMITE_CORPO:
+            raise ValueError("corpo grande demais")
+        return json.loads(self.rfile.read(tamanho).decode("utf-8"))
+
+    # --- rotas ----------------------------------------------------------
+
+    def do_GET(self) -> None:
+        if not self._host_ok():
+            self._json({"ok": False, "erro": "host não permitido"}, 403)
+            return
+        if not self._senha_ok():
+            return
+
+        caminho = urlparse(self.path).path
+        if caminho in ("/", "/index.html"):
+            self._painel()
+        elif caminho in ("/cards", "/cards.html"):
+            self._cards()
+        elif caminho in ("/semana", "/semana.html"):
+            self._semana()
+        elif caminho == "/api/prompt":
+            self._api(self._prompt)
+        elif caminho == "/api/saude":
+            self._api(self._saude)
+        else:
+            self._json({"ok": False, "erro": "rota inexistente"}, 404)
+
+    def do_POST(self) -> None:
+        if not self._host_ok():
+            self._json({"ok": False, "erro": "host não permitido"}, 403)
+            return
+        if not self._senha_ok():
+            return
+
+        rotas = {
+            "/api/pull": self._pull,
+            "/api/push": self._push,
+            "/api/add": self._add,
+            "/api/remove": self._remove,
+            "/api/falha": self._falha,
+            "/api/revisado": self._revisado,
+            "/api/verso": self._verso,
+            "/api/pacote": self._pacote,
+            "/api/autorizar": self._autorizar,
+        }
+        acao = rotas.get(urlparse(self.path).path)
+        if acao is None:
+            self._json({"ok": False, "erro": "rota inexistente"}, 404)
+            return
+        self._api(acao)
+
+    def _api(self, acao) -> None:
+        """Toda rota de API passa por aqui: token, serialização e erro virado JSON."""
+        if not self._token_ok():
+            self._json({"ok": False, "erro": "token inválido"}, 403)
+            return
+        if self.estado.somente_leitura and urlparse(self.path).path in ROTAS_DE_ESCRITA:
+            self._json({
+                "ok": False,
+                "erro": "painel em modo somente leitura — as ações só valem no "
+                        "computador onde o log e a autorização moram",
+            }, 403)
+            return
+        try:
+            with self.estado.lock:
+                self._json(acao())
+        except Exception as exc:  # o servidor não cai por causa de uma ação
+            self._json({"ok": False, "erro": f"{type(exc).__name__}: {exc}"}, 500)
+
+    def _painel(self) -> None:
+        rep, resultado = self.estado.carregar()
+        html = report_mod.render(
+            rep,
+            source=resultado.source,
+            drive_file=config.DRIVE_FILE_NAME,
+            whatsapp=config.whatsapp_number(),
+            interactive=not self.estado.somente_leitura,
+            token=self.estado.token,
+            warnings=resultado.warnings,
+            last_sync=config.read_sync(),
+            pacote=config.read_pacote(),
+        )
+        self._html(html)
+
+    def _semana(self) -> None:
+        rep, _ = self.estado.carregar()
+        self._html(report_mod.render_semana(
+            rep,
+            token=self.estado.token,
+            whatsapp=config.whatsapp_number(),
+            drive_file=config.DRIVE_FILE_NAME,
+        ))
+
+    def _cards(self) -> None:
+        rep, _ = self.estado.carregar()
+        self._html(report_mod.render_cards(rep, token=self.estado.token))
+
+    # --- ações (as mesmas da CLI) ---------------------------------------
+
+    def _prompt(self) -> dict:
+        pedido = parse_qs(urlparse(self.path).query)
+        rep, _ = self.estado.carregar()
+        dia = int(pedido.get("dia", [0])[0]) or rep.next_day
+        if dia is None:
+            return {"ok": False, "erro": "plano concluído"}
+        return {"ok": True, "dia": dia, "prompt": prompt_mod.build(dia, rep, config.DRIVE_FILE_NAME)}
+
+    def _pull(self) -> dict:
+        if self.estado.offline:
+            return {"ok": False, "erro": "servidor iniciado com --offline"}
+        resultado = drive.load(prefer_remote=True, strict=True)  # a única rota que vai à rede por leitura
+        rep = analytics.build_report(parse_log(resultado.text))
+        return {
+            "ok": True,
+            "mensagem": f'Baixado de "{resultado.name or config.DRIVE_FILE_NAME}" '
+                        f"({rep.total_sessions} sessões no log).",
+            "avisos": resultado.warnings,
+        }
+
+    def _push(self) -> dict:
+        if self.estado.offline:
+            return {"ok": False, "erro": "servidor iniciado com --offline"}
+        texto = drive.read_cached()
+        if not texto.strip():
+            return {"ok": False, "erro": "cache local vazio — nada para enviar"}
+        drive.push(texto)
+        return {"ok": True, "mensagem": "Cache local fundido no arquivo do Drive."}
+
+    def _remove(self) -> dict:
+        """Apaga um dia do log. Remoção NÃO se propaga por fusão: exige substituir.
+
+        O `push` normal só acrescenta — é o que protege a sessão que o professor
+        escreveu entre o último `pull` e o `add`. Para uma remoção chegar ao
+        Drive, o arquivo remoto tem de ser substituído pelo local, e é por isso
+        que esta rota é a única que usa `force`. O backup do remoto é feito pelo
+        próprio `push` antes de escrever.
+        """
+        dados = self._corpo_json()
+        try:
+            dia = int(dados.get("dia") or 0)
+        except (TypeError, ValueError):
+            return {"ok": False, "erro": "dia inválido"}
+        if dia <= 0:
+            return {"ok": False, "erro": "dia inválido"}
+
+        atual = drive.read_cached()
+        novo, removidas = remove_day(atual, dia)
+        if not removidas:
+            return {"ok": False, "erro": f"o dia {dia} não está no log local"}
+
+        drive.write_cache(novo, backup_tag=f"pre-remove-dia{dia}")
+
+        no_drive = "O Drive não foi tocado (modo offline)."
+        if not self.estado.offline:
+            try:
+                drive.push(novo, force=True)
+                no_drive = "O arquivo do Drive foi substituído pelo log sem esse dia."
+            except (drive.DriveUnavailable, drive.DriveRefused) as exc:
+                no_drive = (f"Drive não atualizado ({exc}). O log local já está sem o dia; "
+                            "rode um push quando resolver.")
+
+        return {
+            "ok": True,
+            "mensagem": f"Dia {dia} apagado do log local. {no_drive} "
+                        f"Há cópia do estado anterior em backups/.",
+        }
+
+    def _saude(self) -> dict:
+        """O que precisa da atenção do usuário. Vai à rede só para o refresh do token."""
+        if self.estado.offline:
+            return {"ok": True, "offline": True}
+        leitura_ok, leitura = drive.check_auth(write=False)
+        escrita_ok, escrita = drive.check_auth(write=True)
+        return {
+            "ok": True,
+            "offline": False,
+            "leitura": {"ok": leitura_ok, "motivo": leitura},
+            "escrita": {"ok": escrita_ok, "motivo": escrita},
+        }
+
+    def _autorizar(self) -> dict:
+        """Refaz o consentimento. Abre uma aba do navegador e espera."""
+        if self.estado.offline:
+            return {"ok": False, "erro": "servidor iniciado com --offline"}
+        escrita = bool(self._corpo_json().get("escrita"))
+        try:
+            drive.renew_auth(write=escrita)
+        except Exception as exc:
+            return {"ok": False, "erro": f"{type(exc).__name__}: {exc}"}
+        alvo = "escrita" if escrita else "leitura"
+        return {"ok": True, "mensagem": f"Autorização de {alvo} renovada."}
+
+    def _pacote(self) -> dict:
+        """Publica a semana no Drive: é o que tira o notebook do caminho diário."""
+        if self.estado.offline:
+            return {"ok": False, "erro": "servidor iniciado com --offline"}
+        try:
+            dias = int(self._corpo_json().get("dias") or 7)
+        except (TypeError, ValueError):
+            dias = 7
+        rep, _ = self.estado.carregar()
+        blocos = prompt_mod.pacote_dias(rep, dias, config.DRIVE_FILE_NAME)
+        if not blocos:
+            return {"ok": False, "erro": "plano concluído — não há dias a publicar"}
+        texto = prompt_mod.pacote(rep, dias=dias, drive_file=config.DRIVE_FILE_NAME)
+        drive.publish_prompt(texto)
+        config.write_pacote(blocos[0]["dia"], blocos[-1]["dia"])
+        return {
+            "ok": True,
+            "mensagem": f'Dias {blocos[0]["dia"]} a {blocos[-1]["dia"]} publicados '
+                        f'como "{drive.PROMPT_FILE_NAME}.md" no Drive. '
+                        f"Abra pelo app do Drive no celular.",
+        }
+
+    def _falha(self) -> dict:
+        """"Errei este": traz o item de volta amanhã. Rebaixa, nunca promove."""
+        chave = (self._corpo_json().get("chave") or "").strip()
+        if not chave:
+            return {"ok": False, "erro": "item não informado"}
+        config.registrar_revisao_local("falhas", chave)
+        return {"ok": True, "mensagem": "Anotado como erro: volta amanhã."}
+
+    def _revisado(self) -> dict:
+        """"Já revisei hoje": tira do baralho do dia SEM mexer na caixa.
+
+        Prática não é evidência: quem promove o item é o professor, registrando
+        `Acertos:` na sessão. Isto só evita que o cartão insista no mesmo dia.
+        """
+        chave = (self._corpo_json().get("chave") or "").strip()
+        if not chave:
+            return {"ok": False, "erro": "item não informado"}
+        config.registrar_revisao_local("revisados", chave)
+        return {
+            "ok": True,
+            "mensagem": "Fora do baralho de hoje. A caixa não mudou — só o "
+                        "`Acertos:` do professor promove.",
+        }
+
+    def _verso(self) -> dict:
+        """O verso escrito pelo aluno, gravado no LOG (e não num arquivo à parte)."""
+        dados = self._corpo_json()
+        rotulo = (dados.get("rotulo") or "").strip()
+        verso = (dados.get("verso") or "").strip()
+        if not rotulo or not verso:
+            return {"ok": False, "erro": "item ou verso vazio"}
+
+        atual = drive.read_cached()
+        novo, escreveu = set_verso(atual, rotulo, verso)
+        if not escreveu:
+            return {"ok": False, "erro": "não achei o item no log, ou ele já tem verso"}
+
+        drive.write_cache(novo, backup_tag="pre-verso")
+        no_drive = "O Drive não foi tocado (modo offline)."
+        if not self.estado.offline:
+            try:
+                drive.push(novo)
+                no_drive = "Enviado ao Drive."
+            except (drive.DriveUnavailable, drive.DriveRefused) as exc:
+                no_drive = f"Drive não atualizado ({exc}); está salvo aqui."
+        return {"ok": True, "mensagem": f"Verso salvo no log. {no_drive}"}
+
+    def _add(self) -> dict:
+        dados = self._corpo_json()
+        colado = (dados.get("texto") or "").strip()
+        if not colado:
+            return {"ok": False, "erro": "nada colado — nada foi registrado"}
+
+        rep, _ = self.estado.carregar()
+        dia = int(dados.get("dia") or 0) or rep.next_day
+        pd = plan.get(dia)
+        if pd is None:
+            return {"ok": False, "erro": f"dia {dia} não existe no plano"}
+
+        entrada = parse_session(colado, dia)
+        if entrada is not None:
+            entrada.kind = entrada.kind or pd.kind
+            entrada.topic = entrada.topic or pd.topic
+            aviso = ""
+        else:
+            entrada = Entry(day=dia, kind=pd.kind, topic=pd.topic, extra=colado)
+            aviso = ("Não entendi o formato: guardei o texto em 'Resumo colado'. "
+                     "Erros e palavras não foram extraídos.")
+
+        bloco = render_entry(entrada)
+        atual = drive.read_cached()
+        juntado = (atual.rstrip() + "\n\n" + bloco + "\n") if atual.strip() else bloco + "\n"
+        drive.write_cache(juntado, backup_tag="pre-add")
+
+        enviado = ""
+        if not self.estado.offline:
+            try:
+                drive.push(juntado)
+                enviado = "Enviado ao Drive."
+            except (drive.DriveUnavailable, drive.DriveRefused) as exc:
+                enviado = f"Drive não atualizado ({exc}). O registro local está salvo."
+
+        return {
+            "ok": True,
+            "mensagem": " ".join(x for x in [f"Dia {dia} registrado.", aviso, enviado] if x),
+            "bloco": bloco,
+        }
+
+
+def servir(
+    porta: int = 8765,
+    abrir: bool = True,
+    offline: bool = False,
+    host: str = "127.0.0.1",
+    hosts_extra: list[str] | None = None,
+    somente_leitura: bool = False,
+    senha: str = "",
+) -> None:
+    """Sobe o painel e bloqueia até Ctrl-C.
+
+    O padrão é `127.0.0.1`: só esta máquina alcança. Mudar o `host` abre o painel
+    para a rede — e aí vale lembrar o que o token NÃO faz: ele é servido dentro
+    da página, então quem consegue carregá-la consegue agir. Abrir para uma rede
+    privada (Tailscale, VPN, LAN de casa) é uma coisa; para a internet aberta é
+    dar escrita no seu Drive a quem achar a URL.
+
+    `somente_leitura` é a trava para o caso remoto: o painel mostra tudo e recusa
+    qualquer ação que mude algo.
+    """
+    Handler.estado = Estado(
+        token=secrets.token_urlsafe(24),
+        offline=offline,
+        somente_leitura=somente_leitura,
+        hosts=set(hosts_extra or []) | {host},
+        senha=senha,
+    )
+    httpd = ThreadingHTTPServer((host, porta), Handler)
+    url = f"http://{host}:{httpd.server_address[1]}/"
+
+    print(f"Painel em {url}", flush=True)
+    if somente_leitura:
+        print("Modo SOMENTE LEITURA: nenhuma ação muda log, Drive ou autorização.", flush=True)
+    else:
+        print("As ações do terminal estão nos botões da página. Ctrl-C encerra.", flush=True)
+    if offline:
+        print("Modo offline: pull, push e envio ao Drive estão desligados.", flush=True)
+
+    if host not in HOSTS_LOOPBACK:
+        print(flush=True)
+        print("⚠  O painel está ouvindo FORA desta máquina.", flush=True)
+        print("   O token de acesso é servido dentro da própria página, então", flush=True)
+        print("   quem conseguir abri-la age como você" + (
+            " — mas o modo somente leitura está ligado." if somente_leitura
+            else ", inclusive escrevendo no seu Drive."), flush=True)
+        if senha:
+            print("   Senha ligada (HTTP Basic) — mas ela só protege de verdade", flush=True)
+            print("   sobre HTTPS: em HTTP puro ela trafega legível na rede.", flush=True)
+        else:
+            print("   SEM SENHA: qualquer um que alcance esta porta entra.", flush=True)
+        print("   Use isto só em rede privada, ou atrás de um túnel com TLS.", flush=True)
+        print(f"   Hosts aceitos no cabeçalho: {', '.join(sorted(Handler.estado.hosts))}", flush=True)
+        print(flush=True)
+
+    if abrir and host in HOSTS_LOOPBACK:
+        webbrowser.open(url)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nEncerrado.")
+    finally:
+        httpd.server_close()

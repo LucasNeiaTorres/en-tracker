@@ -1,0 +1,33 @@
+# Ambiente
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Saída gerada. As barras iniciais são essenciais: sem elas, `dashboard.html`
+# casaria também com `english_tracker/templates/dashboard.html` — o template que
+# o programa precisa para funcionar — e o clone viria quebrado.
+/dashboard.html
+/sample/exemplo-rico.md
+/english-tracker*.zip
+
+# Nada que se pareça com credencial deve chegar aqui. O estado real do programa
+# mora em ~/.english-tracker (credentials.json, token*.json, senha, o log), fora
+# desta árvore — estas linhas são a segunda barreira, para o caso de alguém
+# copiar um arquivo para cá sem pensar.
+credentials.json
+client_secret*.json
+token*.json
+senha
+revisao-local.json
+pacote.json
+file-id
+last-sync
+backups/
+
+# O log REAL nunca entra. O de exemplo (`sample/english-log.md`) entra, e é
+# parte do projeto: é ele que exercita a detecção de buraco.
+/english-log.md

@@ -1,0 +1,147 @@
+<title>A semana — English log</title>
+<style>
+  :root {
+    --paper: #EDEEE8; --sheet: #FCFCF9; --ink: #1E2B31; --pencil: #5A6B72;
+    --faint: #99A39D; --pen: #B3261E; --grow: #3F6B4F; --tech: #2F4F7F;
+    --rule: #D8DBD2;
+    --serif: "Instrument Serif", Georgia, serif;
+    --sans: "Karla", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); padding: 2rem 1rem 3rem;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .folha { width: 100%; max-width: 44rem; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  header h1 { font-family: var(--serif); font-weight: 400; font-size: 1.7rem; margin: 0; }
+  header a { color: var(--pencil); font-size: .85rem; text-decoration: none; border-bottom: 1px solid var(--rule); }
+  header a:hover { color: var(--ink); }
+
+  .lede { color: var(--pencil); font-size: .9rem; line-height: 1.5; margin: .8rem 0 1.6rem; }
+  .lede b { color: var(--ink); }
+
+  .publicar {
+    display: flex; flex-wrap: wrap; gap: .6rem; align-items: center;
+    padding-bottom: 1.4rem; margin-bottom: 1.6rem; border-bottom: 1px solid var(--rule);
+  }
+  .publicar .msg { flex-basis: 100%; font-size: .82rem; color: var(--pencil); margin: 0; min-height: 1.1rem; }
+  .publicar .msg.erro { color: var(--pen); }
+
+  .dia {
+    background: var(--sheet); border: 1px solid var(--rule);
+    padding: 1.2rem 1.4rem; margin-bottom: .8rem;
+  }
+  .dia h2 { font-family: var(--serif); font-weight: 400; font-size: 1.25rem; margin: 0 0 .2rem; }
+  .dia .tema { color: var(--pencil); font-size: .88rem; margin: 0 0 1rem; }
+  .dia .acoes { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .dia.kind-D h2::before { content: ""; }
+
+  button, a.botao {
+    font-family: var(--sans); font-size: .85rem; font-weight: 500;
+    padding: .45rem .9rem; cursor: pointer; text-decoration: none;
+    border: 1px solid var(--ink); background: transparent; color: var(--ink);
+    display: inline-block;
+  }
+  button:hover, a.botao:hover { background: var(--ink); color: var(--sheet); }
+  button.principal { background: var(--ink); color: var(--sheet); }
+  button[disabled] { opacity: .45; cursor: progress; }
+
+  details { margin-top: .8rem; }
+  summary { font-size: .8rem; color: var(--pencil); cursor: pointer; }
+  pre {
+    white-space: pre-wrap; font-size: .74rem; line-height: 1.45;
+    background: var(--paper); border: 1px solid var(--rule);
+    padding: .8rem; margin: .6rem 0 0; max-height: 16rem; overflow: auto;
+  }
+</style>
+
+<div class="folha">
+  <header>
+    <h1>A semana</h1>
+    <a href="/">← voltar ao painel</a>
+  </header>
+
+  <p class="lede">
+    Os próximos dias, já com o prompt pronto. <b>Serve para não precisar do
+    notebook todo dia</b>: publique no Drive ou mande para o seu WhatsApp, e o
+    celular resolve o resto da semana.
+    O tema de cada dia está sempre certo; o histórico e a lista de revisão dentro
+    de cada prompt são de hoje — quanto mais tempo passar, mais velhos ficam.
+  </p>
+
+  <div class="publicar">
+    <button class="principal" id="publicar">Publicar a semana no Drive</button>
+    <p class="msg" id="msg">Vira o arquivo <code>english-prompt.md</code>, que você abre pelo app do Drive no celular.</p>
+  </div>
+
+  {% for bloco in blocos %}
+  <div class="dia">
+    <h2>Dia {{ bloco.dia }} · {{ bloco.tipo }}</h2>
+    <p class="tema">{{ bloco.tema }}</p>
+    <div class="acoes">
+      <button class="whats" data-dia="{{ bloco.dia }}">Enviar ao WhatsApp</button>
+      <button class="copiar" data-dia="{{ bloco.dia }}">Copiar</button>
+    </div>
+    <details>
+      <summary>ver o prompt</summary>
+      <pre id="p{{ bloco.dia }}">{{ bloco.prompt }}</pre>
+    </details>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+  var TOKEN = {{ token|tojson }};
+  var NUMERO = {{ whatsapp|tojson }};
+  var msg = document.getElementById('msg');
+
+  function avisar(texto, erro) {
+    msg.textContent = texto;
+    msg.className = erro ? 'msg erro' : 'msg';
+  }
+
+  function textoDoDia(dia) {
+    var el = document.getElementById('p' + dia);
+    return el ? el.textContent : '';
+  }
+
+  document.querySelectorAll('button.whats').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var url = 'https://wa.me/' + NUMERO + '?text=' + encodeURIComponent(textoDoDia(b.dataset.dia));
+      window.open(url, '_blank', 'noopener');
+    });
+  });
+
+  document.querySelectorAll('button.copiar').forEach(function (b) {
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(textoDoDia(b.dataset.dia)).then(function () {
+        var antes = b.textContent;
+        b.textContent = 'Copiado';
+        setTimeout(function () { b.textContent = antes; }, 1600);
+      }, function () { avisar('Não deu para copiar — abra "ver o prompt" e selecione.', true); });
+    });
+  });
+
+  var publicar = document.getElementById('publicar');
+  publicar.addEventListener('click', function () {
+    publicar.disabled = true;
+    var antes = publicar.textContent;
+    publicar.textContent = 'publicando…';
+    avisar('Publicando no Drive…');
+    fetch('/api/pacote', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Token': TOKEN},
+      body: JSON.stringify({dias: {{ blocos|length }}})
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      publicar.disabled = false;
+      publicar.textContent = antes;
+      avisar(d.ok ? (d.mensagem || 'Publicado.') : (d.erro || 'falhou'), !d.ok);
+    }).catch(function (e) {
+      publicar.disabled = false;
+      publicar.textContent = antes;
+      avisar('Erro de comunicação: ' + e, true);
+    });
+  });
+</script>

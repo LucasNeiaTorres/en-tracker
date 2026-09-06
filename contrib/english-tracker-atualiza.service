@@ -1,0 +1,11 @@
+[Unit]
+Description=english-tracker: puxa a versão nova do GitHub e reinicia o painel
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/english-tracker
+# O deploy é PUXADO, não empurrado: o GitHub não alcança uma máquina atrás de
+# NAT, e abrir porta para ele seria trocar um problema pequeno por um grande.
+ExecStart=/usr/bin/git pull --ff-only
+ExecStart=%h/english-tracker/.venv/bin/pip install -e . --quiet
+ExecStart=/usr/bin/systemctl --user restart english-tracker-painel.service

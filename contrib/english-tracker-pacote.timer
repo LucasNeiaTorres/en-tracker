@@ -1,0 +1,12 @@
+[Unit]
+Description=Publica o pacote de prompts de hora em hora, quando a máquina estiver ligada
+
+[Timer]
+# 5 minutos depois de ligar, e de hora em hora daí em diante.
+OnBootSec=5min
+OnUnitActiveSec=1h
+# Se a máquina passou dias desligada, roda assim que ligar em vez de esperar.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

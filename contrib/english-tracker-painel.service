@@ -1,0 +1,16 @@
+[Unit]
+Description=english-tracker: painel sempre no ar (somente leitura)
+After=network-online.target
+
+[Service]
+# --offline: esta máquina NÃO fala com o Google. Ela só serve o log que já está
+# no disco, então não precisa de credencial, de token, nem do reconsentimento
+# de 7 dias. Quem sincroniza o log é o outro computador (ou um cliente de Drive).
+# --somente-leitura: nenhuma ação daqui muda log, Drive ou autorização.
+ExecStart=%h/english-tracker/.venv/bin/english-tracker --offline serve \
+  --host 0.0.0.0 --sem-abrir --somente-leitura --com-senha
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

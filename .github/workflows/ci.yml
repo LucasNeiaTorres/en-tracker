@@ -1,0 +1,52 @@
+name: testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # A versão mínima declarada no pyproject e as que a máquina do dono
+        # provavelmente terá. O parser depende de detalhes de regex e de
+        # `str.isdigit`, então rodar em mais de uma versão não é cerimônia.
+        python: ["3.10", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Instalar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+
+      - name: Nenhum segredo versionado
+        run: |
+          # Uma credencial commitada não é pega por teste nenhum, e é o único
+          # erro deste repositório que não dá para desfazer com um commit.
+          if git ls-files | grep -E '(credentials|client_secret|token).*\.json|(^|/)senha$'; then
+            echo "::error::Arquivo de credencial versionado. Remova do índice e gire o segredo."
+            exit 1
+          fi
+
+      - name: Testes
+        run: python -m pytest tests/ -q
+
+      - name: O exemplo continua gerando e sendo lido
+        run: |
+          python sample/gerar-exemplo.py > /tmp/exemplo.md
+          python -m english_tracker --file /tmp/exemplo.md --offline status
+          python -m english_tracker --file /tmp/exemplo.md --offline deck
+          python -m english_tracker --file /tmp/exemplo.md --offline report -o /tmp/painel.html --no-open
+          test -s /tmp/painel.html
