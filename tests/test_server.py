@@ -494,3 +494,43 @@ def test_ao_ouvir_na_rede_o_proprio_ip_e_aceito(tmp_path, monkeypatch):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_remove_confere_o_drive_antes_de_apagar(tmp_path, monkeypatch):
+    """Apagar SUBSTITUI o remoto: partir de cache velho levaria junto o que chegou depois."""
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    monkeypatch.setattr(config, "CACHE_PATH", tmp_path / "english-log.md")
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "backups")
+
+    # o cache está VELHO: só tem o dia 1
+    drive.write_cache("DIA 01 — 02/09 — Tipo: D — Tema: um\nErros: a\n")
+
+    # e o Drive já tem o dia 2, que chegou depois da última sincronização
+    fresco = ("DIA 01 — 02/09 — Tipo: D — Tema: um\nErros: a\n\n"
+              "DIA 02 — 03/09 — Tipo: T — Tema: dois\nErros: chegou depois\n")
+    enviado = {}
+
+    monkeypatch.setattr(
+        drive, "fetch",
+        lambda name=None: drive.RemoteFile("id", "english-log.md", None, fresco),
+    )
+    monkeypatch.setattr(
+        drive, "push",
+        lambda texto, name=None, force=False: enviado.setdefault("texto", texto),
+    )
+
+    server.Handler.estado = server.Estado(token=TOKEN, offline=False)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        dados = json.loads(chamar(base, "/api/remove", {"dia": 1})[1])
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert dados["ok"] is True
+    assert "chegou depois" in enviado["texto"], (
+        "o dia que só existia no Drive teria sido apagado junto"
+    )
+    assert "DIA 01" not in enviado["texto"]

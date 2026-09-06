@@ -48,8 +48,15 @@ serviço** — que não pede navegador e não expira em 7 dias, e é o que torna
 automação desatendida possível. Um timer roda `pull` a cada 15 minutos; o painel
 serve o que está no disco.
 
-O painel vai `--somente-leitura`: registrar sessão e publicar a semana continuam
-sendo do notebook. **Um escritor só** — o servidor lê e mostra.
+O painel do servidor é **completo**, com os botões: a senha é a tranca. Isso o
+torna um segundo escritor, e a operação perigosa disso — apagar dia, que
+**substitui** o arquivo do Drive em vez de fundir — passou a partir do conteúdo
+fresco do Drive, não do cache local. Sem isso, apagar um dia numa máquina com
+cache de 15 minutos levaria junto qualquer sessão chegada no intervalo.
+
+⚠️ Com botões, a senha deixou de ser conforto: ela é o único obstáculo entre a
+sua rede e o seu log. Use uma senha longa, e lembre que ela **viaja em HTTP puro**
+na LAN. Para sair de casa, `tailscale serve` põe HTTPS na frente.
 
     notebook ──(add, push, publicar a semana)──> Drive <──(pull a cada 15min)── servidor
                                                               │
@@ -188,8 +195,9 @@ notebook**. Se o professor escrever a sessão hoje e você não abrir o notebook
 uma semana, o painel do servidor já mostra a sessão — porque ele lê do Drive, não
 do notebook.
 
-O que continua exigindo o notebook: registrar sessão à mão, apagar dia, preencher
-verso de cartão e publicar a semana. São todas escritas, e o servidor é leitura.
+Tudo pode ser feito dos dois lados: registrar sessão, apagar dia, preencher verso,
+publicar a semana. As escritas comuns são por **fusão** (nada se perde se as duas
+máquinas agirem), e a única que substitui — apagar dia — confere o Drive antes.
 
 ### Para abrir de fora da sua rede
 

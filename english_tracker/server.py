@@ -319,10 +319,20 @@ class Handler(BaseHTTPRequestHandler):
         if dia <= 0:
             return {"ok": False, "erro": "dia inválido"}
 
+        # Apagar é a única operação que SUBSTITUI o arquivo do Drive (fusão não
+        # remove nada). Fazer isso a partir de um cache velho apagaria junto o
+        # que tivesse chegado no meio — então a remoção parte do conteúdo fresco.
         atual = drive.read_cached()
+        if not self.estado.offline:
+            try:
+                atual = drive.fetch().text
+                drive.write_cache(atual, backup_tag="pre-remove-sync")
+            except drive.DriveUnavailable as exc:
+                return {"ok": False, "erro": f"não deu para conferir o Drive antes de apagar: {exc}"}
+
         novo, removidas = remove_day(atual, dia)
         if not removidas:
-            return {"ok": False, "erro": f"o dia {dia} não está no log local"}
+            return {"ok": False, "erro": f"o dia {dia} não está no log"}
 
         drive.write_cache(novo, backup_tag=f"pre-remove-dia{dia}")
 

@@ -272,6 +272,18 @@ def cmd_remove(args) -> int:
     """Apaga um dia do log. Precisa substituir o remoto: fusão não remove nada."""
     destino = _destino(args)
     atual = destino.read_text(encoding="utf-8") if destino.exists() else ""
+
+    # Apagar SUBSTITUI o arquivo do Drive; partir de um cache velho levaria junto
+    # o que tivesse chegado depois da última sincronização.
+    if not args.file and not args.offline:
+        try:
+            atual = drive.fetch().text
+            drive.write_cache(atual, backup_tag="pre-remove-sync")
+        except drive.DriveUnavailable as exc:
+            print(f"{RED}Não deu para conferir o Drive antes de apagar: {exc}{OFF}",
+                  file=sys.stderr)
+            return 1
+
     novo, removidas = log_parser.remove_day(atual, args.day)
     if not removidas:
         print(f"O dia {args.day} não está no log.", file=sys.stderr)

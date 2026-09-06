@@ -101,14 +101,18 @@ def test_argumentos_das_unidades_passam_no_argparse(unidade):
     assert encontrou, f"{unidade.name} não chama o english-tracker"
 
 
-def test_o_painel_do_servidor_e_somente_leitura():
-    """A trava do acesso remoto não pode sumir numa edição distraída."""
+def test_o_painel_do_servidor_exige_senha():
+    """Ouvir na rede sem senha é o erro que não pode passar despercebido.
+
+    O painel do servidor é COMPLETO (decisão do Lucas: a senha é a tranca), então
+    a senha deixou de ser conforto e virou o único obstáculo entre a rede e o
+    log — sem ela, qualquer um na LAN apaga um dia.
+    """
     comandos = execstarts(CONTRIB / "english-tracker-painel.service")
     args = next(a for a in map(argumentos_do_tracker, comandos) if a)
     opcoes = cli.build_parser().parse_args(args)
-    assert opcoes.somente_leitura is True
-    assert opcoes.com_senha is True
     assert opcoes.host == "0.0.0.0", "o painel do servidor ouve na rede"
+    assert opcoes.com_senha is True, "ouvir na rede sem senha, nunca"
 
 
 def test_o_deploy_testa_antes_de_reiniciar():
