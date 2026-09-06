@@ -58,7 +58,7 @@ painel também vai `--somente-leitura`, nada que se faça nele muda coisa alguma
 ### Instalação
 
 ```bash
-git clone git@github.com:SEU-USUARIO/english-tracker.git ~/pessoal/english-tracker
+git clone git@github.com:LucasNeiaTorres/en-tracker.git ~/pessoal/english-tracker
 cd ~/pessoal/english-tracker
 python3 -m venv .venv && ./.venv/bin/pip install -e .
 

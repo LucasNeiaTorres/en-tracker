@@ -1,6 +1,6 @@
 # english-tracker
 
-[![testes](https://github.com/SEU-USUARIO/english-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/SEU-USUARIO/english-tracker/actions/workflows/ci.yml)
+[![testes](https://github.com/LucasNeiaTorres/en-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/LucasNeiaTorres/en-tracker/actions/workflows/ci.yml)
 
 ![O painel: a folha de chamada com um dia cortado a vermelho, um dia tracejado, e os avisos](docs/painel.png)
 
