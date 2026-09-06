@@ -774,6 +774,7 @@ python -m pytest tests/ -q
 | `test_analytics.py` | buraco, sequência, agrupamento, prompt, determinismo do painel |
 | `test_drive.py` | a fusão do push e o backup — o único dano irreversível |
 | `test_revisao.py` | a agenda espaçada: o que promove um item, o que o traz de volta, o que o domina, e o regime de pronúncia |
+| `test_contrib.py` | as unidades do systemd: os argumentos de cada `ExecStart` passam pelo argparse de verdade, o painel remoto continua somente-leitura, e o portão de testes vem antes do restart |
 | `test_cli.py` | o `add`: destino da escrita, texto preservado, recusa de sessão vazia |
 
 O parser é a parte frágil — ele lida com saída de linguagem natural, em duas
