@@ -88,5 +88,10 @@ Se quiser que o deploy aconteça no instante do push, instale um **self-hosted
 runner** do GitHub Actions nesse computador: ele conversa com o GitHub por
 conexão de saída, então funciona atrás de NAT do mesmo jeito.
 
-⚠️ **Só faça isso com o repositório privado.** Num repositório público, qualquer
-pessoa abre um pull request e o runner executaria o código dela na sua máquina.
+🚫 **Não faça isso com o repositório público.** Num repositório público qualquer
+pessoa abre um pull request, e o runner executaria o código dela na sua máquina —
+com o seu usuário, no seu disco, na sua rede. É um dos poucos erros de
+configuração que entregam a máquina inteira.
+
+Com repositório público, use o `git pull` do timer acima: ele é de saída, não
+executa nada de terceiros, e quinze minutos de atraso não fazem diferença aqui.

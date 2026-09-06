@@ -115,20 +115,20 @@ foram escritos; erro é erro. Custo: dez minutos por semana e um bloco novo em
 ## 5. Os temas técnicos deveriam vir do trabalho real
 
 Os dias `T` pedem para explicar injeção de dependência, Kafka, Kubernetes — bom
-material genérico de entrevista. Mas o inglês de maior valor imediato para ele é
-o **do próprio domínio**: explicar por que uma mudança em `commons-*` tem raio de
-explosão entre Ares, Libra e CronosX; narrar uma análise de causa-raiz; defender
-uma decisão de contrato FTP.
+material genérico de entrevista. Mas o inglês de maior valor imediato é o **do
+próprio domínio de trabalho**: explicar por que uma mudança num módulo
+compartilhado afeta os outros serviços que dependem dele, narrar uma análise de
+causa-raiz, defender uma decisão de contrato de integração.
 
 Isso muda a natureza do estudo: em vez de treinar para uma entrevista
-hipotética, ele treina exatamente o que teria de dizer numa reunião real, com o
-vocabulário que vai reusar na semana.
+hipotética, treina-se exatamente o que se teria de dizer numa reunião real, com o
+vocabulário que se vai reusar na semana.
 
-**O que fazer:** um arquivo `temas.md` onde ele joga, durante a semana, o assunto
-que apareceu no trabalho — e o `prompt --tema "<assunto>"` para sobrepor o tema do
-plano. Versão ambiciosa, e nem tão difícil: `--tema-da-sd SD-3556`, puxando o
-`summary` do YouTrack pelo `yt.py` que já existe na máquina. O ganho não é
-técnico, é de aderência: estudar o que serve hoje é o que faz voltar amanhã.
+**O que fazer:** um arquivo `temas.md` onde se anota, durante a semana, o assunto
+que apareceu no trabalho — e um `prompt --tema "<assunto>"` para sobrepor o tema
+do plano. Versão ambiciosa: puxar o título direto do rastreador de tarefas que
+você já usa. O ganho não é técnico, é de aderência: estudar o que serve hoje é o
+que faz voltar amanhã.
 
 ## 6. O dia 31 é um precipício
 

@@ -1,5 +1,20 @@
 # english-tracker
 
+[![testes](https://github.com/SEU-USUARIO/english-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/SEU-USUARIO/english-tracker/actions/workflows/ci.yml)
+
+![O painel: a folha de chamada com um dia cortado a vermelho, um dia tracejado, e os avisos](docs/painel.png)
+
+> **In English, briefly.** A tracker for a 30-day spoken-English plan taught by a
+> voice AI. The teacher is asked to append a summary of each session to a file in
+> Google Drive — and it silently fails at that, often. So the central design rule
+> is that the system never assumes a session was recorded, nor that its content
+> was understood: it compares what the plan expected against what is actually in
+> the file, and shows the difference. On top of that log it derives a spaced
+> repetition schedule (calendar-based, denser intervals for pronunciation),
+> generates the next day's prompt, and publishes a week of prompts to Drive so the
+> phone works with the laptop turned off. Python 3.10+, four dependencies, 151
+> tests, no database.
+
 Painel do plano de inglês de 30 dias. Lê o arquivo `english-log` que um tutor de
 IA escreve no Google Drive, mostra o que está acontecendo e gera o prompt da
 próxima sessão já com o histórico embutido.
