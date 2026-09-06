@@ -19,7 +19,7 @@ ExecStart=%h/pessoal/english-tracker/.venv/bin/python -m pytest tests/ -q
 # para contrib/ e o systemd continuaria lendo a cópia velha em ~/.config — o
 # deploy atualizaria o código e nunca a si mesmo. Só as duas unidades desta
 # máquina: a do pacote é do notebook e não deve existir aqui.
-ExecStart=/usr/bin/install -m 644 -t %h/.config/systemd/user/ contrib/english-tracker-painel.service contrib/english-tracker-atualiza.service contrib/english-tracker-atualiza.timer
+ExecStart=/usr/bin/install -m 644 -t %h/.config/systemd/user/ contrib/english-tracker-painel.service contrib/english-tracker-atualiza.service contrib/english-tracker-atualiza.timer contrib/english-tracker-sync.service contrib/english-tracker-sync.timer
 ExecStart=/usr/bin/systemctl --user daemon-reload
 
 ExecStart=/usr/bin/systemctl --user restart english-tracker-painel.service

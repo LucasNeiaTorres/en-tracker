@@ -43,18 +43,20 @@ quem puxa é o próprio computador, de tempos em tempos.
 
 ### A forma da coisa
 
-O computador sempre ligado roda o painel **`--offline`**: ele nunca fala com o
-Google. Isso resolve o problema que derruba qualquer automação nesta pilha — a
-autorização do Google expira a cada 7 dias e precisa de um navegador para
-renovar. Sem falar com o Google, não há o que expirar.
+O computador sempre ligado puxa o log **direto do Drive**, com **conta de
+serviço** — que não pede navegador e não expira em 7 dias, e é o que torna
+automação desatendida possível. Um timer roda `pull` a cada 15 minutos; o painel
+serve o que está no disco.
 
-Ele serve o log que está no disco. Quem coloca o log lá é o notebook, que é onde
-a autorização mora. E como o painel também vai `--somente-leitura`, nada que se
-faça nele muda coisa alguma.
+O painel vai `--somente-leitura`: registrar sessão e publicar a semana continuam
+sendo do notebook. **Um escritor só** — o servidor lê e mostra.
 
-    notebook ──(pull do Drive, add, push)──> Drive
-       │
-       └──(rsync do log)──> PC sempre ligado ──> painel, leitura, na sua rede
+    notebook ──(add, push, publicar a semana)──> Drive <──(pull a cada 15min)── servidor
+                                                              │
+                                                              └─> painel, leitura, na sua rede
+
+Antes isto era um `rsync` do notebook para o servidor, o que amarrava o painel a
+o notebook estar ligado. Com a conta de serviço, o servidor se vira sozinho.
 
 ---
 
@@ -79,7 +81,21 @@ python3 -m venv .venv
 ./.venv/bin/python -m pytest tests/ -q       # esperado: 151 passed
 ```
 
-**3. A senha do painel** (ela é a tranca do acesso pela rede):
+**3a. A chave da conta de serviço.** No navegador **desta máquina**, console do
+Google Cloud → sua conta de serviço → *Chaves* → *Adicionar chave* → *Criar
+nova* → JSON. Uma chave **por máquina**, para poder revogar uma sem derrubar a
+outra:
+
+```bash
+mkdir -p ~/.english-tracker
+mv ~/Downloads/*-*.json ~/.english-tracker/service-account.json
+chmod 600 ~/.english-tracker/service-account.json
+```
+
+Os arquivos `english-log.md` e `english-prompt.md` já devem estar compartilhados
+com o e-mail da conta (feito uma vez, vale para todas as chaves).
+
+**3b. A senha do painel** (ela é a tranca do acesso pela rede):
 
 ```bash
 mkdir -p ~/.english-tracker
@@ -87,17 +103,17 @@ printf 'uma-senha-longa-e-sua' > ~/.english-tracker/senha
 chmod 600 ~/.english-tracker/senha
 ```
 
-**4. Um log inicial, só para o painel ter o que mostrar** (o de verdade chega no
-passo 8):
+**4. Puxar o log de verdade** (é também o teste da chave — tem de funcionar sem
+abrir navegador nenhum):
 
 ```bash
-./.venv/bin/python sample/gerar-exemplo.py > ~/.english-tracker/english-log.md
+./.venv/bin/english-tracker pull && ./.venv/bin/english-tracker status
 ```
 
 **5. Subir à mão primeiro, para ver funcionando:**
 
 ```bash
-./.venv/bin/english-tracker --offline serve --host 0.0.0.0 --sem-abrir \
+./.venv/bin/english-tracker serve --host 0.0.0.0 --sem-abrir \
     --somente-leitura --com-senha
 ```
 
@@ -112,9 +128,12 @@ mkdir -p ~/.config/systemd/user
 cp contrib/english-tracker-painel.service   ~/.config/systemd/user/
 cp contrib/english-tracker-atualiza.service ~/.config/systemd/user/
 cp contrib/english-tracker-atualiza.timer   ~/.config/systemd/user/
+cp contrib/english-tracker-sync.service     ~/.config/systemd/user/
+cp contrib/english-tracker-sync.timer       ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now english-tracker-painel.service
 systemctl --user enable --now english-tracker-atualiza.timer
+systemctl --user enable --now english-tracker-sync.timer
 
 # sem isto, os serviços morrem quando você desloga
 sudo loginctl enable-linger $USER
@@ -142,31 +161,11 @@ desta máquina já entram sozinhos.
 
 ### No notebook
 
-**8. Mandar o log para lá** depois de cada sincronização com o Drive. Primeiro,
-acesso por SSH sem senha:
+Nada a fazer: ele continua sendo onde você registra sessão, revisa os cartões e
+publica a semana. O servidor pega tudo pelo Drive.
 
-```bash
-# a chave já existe se você gerou uma antes; senão:
-ssh-keygen -t ed25519 -C "notebook" -f ~/.ssh/id_ed25519 -N ""
-ssh-copy-id USUARIO@IP-DO-PC
-ssh USUARIO@IP-DO-PC 'echo ok'
-```
-
-Depois acrescente a cópia ao serviço que já puxa o Drive de hora em hora, no fim
-do `~/.config/systemd/user/english-tracker-pacote.service`:
-
-```ini
-ExecStart=-/usr/bin/rsync -a %h/.english-tracker/english-log.md USUARIO@IP-DO-PC:.english-tracker/english-log.md
-```
-
-O `-` na frente faz o systemd ignorar a falha: o PC pode estar desligado, e isso
-não deve derrubar o resto. Depois:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user start english-tracker-pacote.service
-journalctl --user -u english-tracker-pacote.service -n 20 --no-pager
-```
+Se você tinha acrescentado a linha do `rsync` ao
+`english-tracker-pacote.service`, pode removê-la — ela não é mais necessária.
 
 ---
 
@@ -179,11 +178,13 @@ respondem 403 mesmo se alguém chamar direto.
 Registrar sessão, publicar a semana e renovar a autorização do Google continuam
 no notebook — é lá que o log e os tokens moram.
 
-O log no PC estará tão atualizado quanto o último `rsync`, que acontece de hora
-em hora **com o notebook ligado**. Se você ficar dias sem abrir o notebook, o
-painel remoto mostra o estado daquele dia. Para a sessão diária isso não faz
-diferença: o que você precisa fora de casa é o `english-prompt.md` no Drive, que
-não depende de nenhuma das duas máquinas.
+O log no servidor fica no máximo 15 minutos atrás do Drive, **independente do
+notebook**. Se o professor escrever a sessão hoje e você não abrir o notebook por
+uma semana, o painel do servidor já mostra a sessão — porque ele lê do Drive, não
+do notebook.
+
+O que continua exigindo o notebook: registrar sessão à mão, apagar dia, preencher
+verso de cartão e publicar a semana. São todas escritas, e o servidor é leitura.
 
 ### Para abrir de fora da sua rede
 

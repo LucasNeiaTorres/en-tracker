@@ -1,0 +1,10 @@
+[Unit]
+Description=english-tracker: puxa o log do Drive para o painel ficar em dia
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Com conta de serviço isto roda desatendido para sempre: não há navegador para
+# abrir nem autorização de 7 dias para expirar. Foi o que substituiu o rsync
+# vindo do notebook — e, com ele, a dependência de o notebook estar ligado.
+ExecStart=%h/pessoal/english-tracker/.venv/bin/english-tracker pull

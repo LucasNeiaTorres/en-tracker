@@ -3,11 +3,12 @@ Description=english-tracker: painel sempre no ar (somente leitura)
 After=network-online.target
 
 [Service]
-# --offline: esta máquina NÃO fala com o Google. Ela só serve o log que já está
-# no disco, então não precisa de credencial, de token, nem do reconsentimento
-# de 7 dias. Quem sincroniza o log é o outro computador (ou um cliente de Drive).
-# --somente-leitura: nenhuma ação daqui muda log, Drive ou autorização.
-ExecStart=%h/pessoal/english-tracker/.venv/bin/english-tracker --offline serve \
+# Quem traz o log do Drive é o english-tracker-sync.timer, com conta de serviço.
+# O painel só serve o que está no disco — ele nunca vai à rede para renderizar,
+# de propósito: página instantânea, e "Atualizar" não vira "Puxar".
+# --somente-leitura: nenhuma ação daqui muda log, Drive ou autorização. A escrita
+# (registrar sessão, publicar a semana) continua sendo do notebook: um escritor só.
+ExecStart=%h/pessoal/english-tracker/.venv/bin/english-tracker serve \
   --host 0.0.0.0 --sem-abrir --somente-leitura --com-senha
 Restart=on-failure
 RestartSec=10
