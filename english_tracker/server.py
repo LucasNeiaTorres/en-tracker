@@ -477,6 +477,30 @@ class Handler(BaseHTTPRequestHandler):
         }
 
 
+def _enderecos_locais() -> list[str]:
+    """IPs pelos quais esta máquina é alcançável na rede.
+
+    Descobertos abrindo um socket UDP para fora (sem enviar nada) e perguntando
+    que endereço o sistema escolheu — funciona sem depender de `ip`, `ifconfig`
+    nem de resolver o hostname, que em muitas máquinas devolve 127.0.1.1.
+    """
+    import socket
+
+    achados: list[str] = []
+    for destino in ("8.8.8.8", "192.168.1.1"):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect((destino, 1))
+            ip = s.getsockname()[0]
+            if ip and not ip.startswith("127.") and ip not in achados:
+                achados.append(ip)
+        except OSError:
+            pass
+        finally:
+            s.close()
+    return achados
+
+
 def servir(
     porta: int = 8765,
     abrir: bool = True,
@@ -505,9 +529,19 @@ def servir(
         senha=senha,
     )
     httpd = ThreadingHTTPServer((host, porta), Handler)
-    url = f"http://{host}:{httpd.server_address[1]}/"
+    escutando = httpd.server_address[1]
+    url = f"http://{host}:{escutando}/"
 
-    print(f"Painel em {url}", flush=True)
+    if host == "0.0.0.0":
+        # "0.0.0.0" é instrução de bind, não endereço para abrir no navegador —
+        # imprimir isso como URL manda o usuário para um lugar que não existe.
+        print(f"Painel ouvindo em todas as interfaces, porta {escutando}.", flush=True)
+        print("Abra por um destes endereços:", flush=True)
+        print(f"  http://127.0.0.1:{escutando}/   (nesta máquina)", flush=True)
+        for ip in _enderecos_locais():
+            print(f"  http://{ip}:{escutando}/   (de outro computador da rede)", flush=True)
+    else:
+        print(f"Painel em {url}", flush=True)
     if somente_leitura:
         print("Modo SOMENTE LEITURA: nenhuma ação muda log, Drive ou autorização.", flush=True)
     else:
