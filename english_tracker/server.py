@@ -521,11 +521,25 @@ def servir(
     `somente_leitura` é a trava para o caso remoto: o painel mostra tudo e recusa
     qualquer ação que mude algo.
     """
+    # Ouvir em 0.0.0.0 e aceitar só o Host "0.0.0.0" seria inútil: navegador
+    # nenhum manda isso — ele manda o endereço que você digitou. Então, ao sair
+    # de loopback, os próprios endereços e o nome desta máquina entram na lista.
+    # A checagem continua barrando Host estranho, que é o que ela existe para
+    # barrar (um site externo resolvendo um domínio dele para este IP privado).
+    aceitos = set(hosts_extra or []) | {host}
+    if host not in HOSTS_LOOPBACK:
+        import socket
+
+        aceitos |= set(_enderecos_locais())
+        nome = socket.gethostname()
+        if nome:
+            aceitos |= {nome, nome.split(".")[0], f"{nome.split('.')[0]}.local"}
+
     Handler.estado = Estado(
         token=secrets.token_urlsafe(24),
         offline=offline,
         somente_leitura=somente_leitura,
-        hosts=set(hosts_extra or []) | {host},
+        hosts=aceitos,
         senha=senha,
     )
     httpd = ThreadingHTTPServer((host, porta), Handler)

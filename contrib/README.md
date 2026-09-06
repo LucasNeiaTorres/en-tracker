@@ -129,8 +129,16 @@ sudo ufw allow from 192.168.0.0/16 to any port 8765 proto tcp   # ajuste sua fai
 hostname -I                                                      # anote o IP
 ```
 
-De outro computador da mesma rede: `http://IP-DESSE-PC:8765`. O navegador pede
-usuário e senha — usuário pode ser qualquer coisa, a senha é a do passo 3.
+De outro computador da mesma rede: `http://IP-DESSE-PC:8765` — o IP que o próprio
+serviço imprime na partida (`systemctl --user status ... | tail -6`). O navegador
+pede usuário e senha num diálogo dele, **antes** da página: usuário pode ser
+qualquer coisa, a senha é a do passo 3.
+
+Se você for acessar por um **nome** em vez de IP (o nome da máquina no Tailscale,
+por exemplo), acrescente-o à unidade: `--host-extra nome.seu-tailnet.ts.net`. O
+painel confere o cabeçalho `Host` e recusa o que não conhece — é a defesa contra
+um site externo apontar um domínio dele para o seu IP privado. Os IPs e o nome
+desta máquina já entram sozinhos.
 
 ### No notebook
 

@@ -464,3 +464,33 @@ def test_tentativas_demais_travam_a_origem(servidor_com_senha):
     status, corpo = _com_basic(servidor_com_senha, "/", senha="abre-te-sesamo")
     assert status == 429, "depois do limite, nem a senha certa passa na hora"
     assert "tentativas demais" in corpo
+
+
+def test_ao_ouvir_na_rede_o_proprio_ip_e_aceito(tmp_path, monkeypatch):
+    """Ouvir em 0.0.0.0 e só aceitar Host '0.0.0.0' é inútil: ninguém manda isso.
+
+    O navegador manda o endereço digitado — o IP da máquina na rede. Ele tem de
+    passar; o Host estranho continua barrado.
+    """
+    import socket
+
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    monkeypatch.setattr(config, "CACHE_PATH", tmp_path / "english-log.md")
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "backups")
+    drive.write_cache(LOG)
+
+    locais = server._enderecos_locais()
+    aceitos = {"0.0.0.0"} | set(locais) | {socket.gethostname()}
+    server.Handler.estado = server.Estado(token=TOKEN, offline=True, hosts=aceitos)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        assert chamar(base, "/", host="localhost")[0] == 200
+        assert chamar(base, "/", host=socket.gethostname())[0] == 200
+        for ip in locais:
+            assert chamar(base, "/", host=ip)[0] == 200, f"o próprio IP {ip} foi barrado"
+        assert chamar(base, "/", host="evil.example.com")[0] == 403
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
