@@ -1,5 +1,8 @@
 [Unit]
 Description=english-tracker: puxa o log e publica o pacote de prompts no Drive
+# Habilite este timer em UMA máquina só. O servidor é o lugar certo: ele fica
+# ligado, então o pacote no Drive nunca envelhece por você não ter aberto o
+# notebook — que era exatamente o problema que o pacote existe para resolver.
 Documentation=file:%h/pessoal/english-tracker/COMO-USAR.md
 
 [Service]

@@ -58,9 +58,14 @@ cache de 15 minutos levaria junto qualquer sessão chegada no intervalo.
 sua rede e o seu log. Use uma senha longa, e lembre que ela **viaja em HTTP puro**
 na LAN. Para sair de casa, `tailscale serve` põe HTTPS na frente.
 
-    notebook ──(add, push, publicar a semana)──> Drive <──(pull a cada 15min)── servidor
-                                                              │
-                                                              └─> painel, leitura, na sua rede
+    notebook ──(sessões, correções)──> Drive <──(pull 15min)──── servidor
+                                          ↑                        │
+                                          └──(pacote diário)───────┤
+                                                                   └─> painel, na sua rede
+
+O servidor faz as duas pontas: traz o log do Drive e devolve o pacote de prompts
+da semana seguinte. **Nenhuma delas depende de o notebook estar ligado** — que
+era o ponto de partida de todo este arranjo.
 
 Antes isto era um `rsync` do notebook para o servidor, o que amarrava o painel a
 o notebook estar ligado. Com a conta de serviço, o servidor se vira sozinho.
@@ -142,10 +147,13 @@ cp contrib/english-tracker-atualiza.service ~/.config/systemd/user/
 cp contrib/english-tracker-atualiza.timer   ~/.config/systemd/user/
 cp contrib/english-tracker-sync.service     ~/.config/systemd/user/
 cp contrib/english-tracker-sync.timer       ~/.config/systemd/user/
+cp contrib/english-tracker-pacote.service   ~/.config/systemd/user/
+cp contrib/english-tracker-pacote.timer     ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now english-tracker-painel.service
 systemctl --user enable --now english-tracker-atualiza.timer
 systemctl --user enable --now english-tracker-sync.timer
+systemctl --user enable --now english-tracker-pacote.timer
 
 # sem isto, os serviços morrem quando você desloga
 sudo loginctl enable-linger $USER

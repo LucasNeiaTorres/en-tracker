@@ -1,12 +1,14 @@
 [Unit]
-Description=Publica o pacote de prompts de hora em hora, quando a máquina estiver ligada
+Description=Republica o pacote de prompts no Drive, uma vez por dia
 
 [Timer]
-# 5 minutos depois de ligar, e de hora em hora daí em diante.
-OnBootSec=5min
-OnUnitActiveSec=1h
-# Se a máquina passou dias desligada, roda assim que ligar em vez de esperar.
+# Diário, de madrugada. Por que não de hora em hora: o pacote muda pouco — ele
+# só depende do log, e o log muda uma vez por sessão. E como o texto inteiro é
+# reenviado a cada publicação, republicar sem motivo é só tráfego.
+OnCalendar=daily
+# Se a máquina estava desligada na hora marcada, roda assim que ligar.
 Persistent=true
+RandomizedDelaySec=15min
 
 [Install]
 WantedBy=timers.target
