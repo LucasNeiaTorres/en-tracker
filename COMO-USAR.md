@@ -500,6 +500,10 @@ printf 'uma-senha-longa' > ~/.english-tracker/senha && chmod 600 ~/.english-trac
 en serve --host 127.0.0.1 --com-senha --somente-leitura
 ```
 
+Ela aparece como uma **tela de login** (`/login`), não como o diálogo do
+navegador — o diálogo nativo não existe em app instalado na tela inicial do iOS,
+e ali o painel ficava sem saída. A sessão dura 90 dias; `/sair` encerra.
+
 A ordem importa: o login do Google é a tranca principal, a senha é a segunda, e o
 modo leitura garante que nem as duas falhando alguém mude seu log. Nunca exponha
 sem a primeira: senha em HTTP puro trafega legível.

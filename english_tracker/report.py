@@ -157,6 +157,12 @@ def render_semana(
     )
 
 
+def render_login(erro: str = "", destino: str = "/") -> str:
+    """A tela de senha. Não recebe `Report` porque não pode: ela é o que se vê
+    ANTES de ter direito de ler o log."""
+    return _env().get_template("login.html").render(erro=erro, destino=destino)
+
+
 def render_cards(report: Report, token: str = "") -> str:
     return _env().get_template("cards.html").render(
         cards=cards_json(report), token=token

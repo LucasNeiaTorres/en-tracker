@@ -425,7 +425,7 @@ def build_parser() -> argparse.ArgumentParser:
                          dest="somente_leitura",
                          help="mostra tudo e recusa qualquer ação que mude algo")
     p_serve.add_argument("--com-senha", action="store_true", dest="com_senha",
-                         help="exigir senha (HTTP Basic). A senha vem de "
+                         help="exigir senha (formulário de login). A senha vem de "
                               "ENGLISH_TRACKER_SENHA ou ~/.english-tracker/senha")
     p_serve.set_defaults(func=cmd_serve)
     return ap

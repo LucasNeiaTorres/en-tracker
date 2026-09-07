@@ -1,0 +1,57 @@
+<title>Entrar — English log</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1E2B31">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
+<style>
+  :root {
+    --paper: #EDEEE8; --sheet: #FCFCF9; --ink: #1E2B31; --pencil: #5A6B72;
+    --pen: #B3261E; --rule: #D8DBD2;
+    --serif: "Instrument Serif", Georgia, serif;
+    --sans: "Karla", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); display: flex; align-items: center;
+    justify-content: center; padding: 2rem 1rem;
+  }
+  form {
+    width: 100%; max-width: 21rem; background: var(--sheet);
+    border: 1px solid var(--rule); padding: 2rem 1.6rem;
+  }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 1.9rem; margin: 0 0 .3rem; }
+  p.lede { color: var(--pencil); font-size: .88rem; line-height: 1.5; margin: 0 0 1.6rem; }
+  label { display: block; font-size: .78rem; letter-spacing: .06em;
+          text-transform: uppercase; color: var(--pencil); margin-bottom: .4rem; }
+  input {
+    width: 100%; font-family: var(--sans); font-size: 1.05rem; padding: .7rem;
+    border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+  }
+  button {
+    width: 100%; margin-top: 1.1rem; font-family: var(--sans); font-size: .95rem;
+    font-weight: 500; padding: .75rem; cursor: pointer;
+    border: 1px solid var(--ink); background: var(--ink); color: var(--sheet);
+  }
+  .erro {
+    border-left: 3px solid var(--pen); background: var(--paper);
+    color: var(--pen); font-size: .86rem; padding: .6rem .8rem; margin: 0 0 1.2rem;
+  }
+</style>
+
+<form method="POST" action="/login">
+  <h1>English log</h1>
+  <p class="lede">O painel do seu plano de inglês. Entre para continuar.</p>
+
+  {% if erro %}
+  <p class="erro">{{ erro }}</p>
+  {% endif %}
+
+  <label for="senha">Senha</label>
+  <input type="password" id="senha" name="senha" autocomplete="current-password"
+         autofocus required>
+  <input type="hidden" name="destino" value="{{ destino }}">
+
+  <button type="submit">Entrar</button>
+</form>

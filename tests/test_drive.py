@@ -198,6 +198,10 @@ def test_json_invalido_ou_de_outro_tipo_e_ignorado(tmp_path, monkeypatch):
 
 
 def test_check_auth_com_conta_de_servico_nao_fala_em_expiracao(monkeypatch):
+    # Faltava a guarda que os testes vizinhos têm: sem as bibliotecas do Google,
+    # `check_auth` responde "não estão instaladas" e este teste falhava fora do
+    # venv do projeto — falha de ambiente com cara de defeito.
+    pytest.importorskip("googleapiclient")
     monkeypatch.setattr(config, "SA_ENV", json.dumps(CHAVE_FALSA))
     ok, motivo = drive.check_auth(write=True)
     assert ok is True

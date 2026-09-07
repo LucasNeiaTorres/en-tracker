@@ -135,7 +135,8 @@ abrir navegador nenhum):
 ```
 
 Deve imprimir o aviso de que está ouvindo fora da máquina e que o modo leitura
-está ligado. Em outro terminal, `curl -u x:SUA-SENHA http://127.0.0.1:8765/ | head -3`.
+está ligado. Em outro terminal, `curl -u x:SUA-SENHA http://127.0.0.1:8765/ | head -3`
+(pelo terminal o Basic continua servindo; no navegador é a tela de login).
 Depois Ctrl-C.
 
 **6. Instalar como serviço, para subir sozinho:**
@@ -169,9 +170,15 @@ hostname -I                                                      # anote o IP
 ```
 
 De outro computador da mesma rede: `http://IP-DESSE-PC:8765` — o IP que o próprio
-serviço imprime na partida (`systemctl --user status ... | tail -6`). O navegador
-pede usuário e senha num diálogo dele, **antes** da página: usuário pode ser
-qualquer coisa, a senha é a do passo 3.
+serviço imprime na partida (`systemctl --user status ... | tail -6`). Aparece uma
+**tela de login** com um campo de senha: a senha é a do passo 3. Depois de entrar,
+a sessão dura 90 dias naquele navegador; `/sair` a encerra.
+
+> Era HTTP Basic até 2026-09-07, e foi trocado por um motivo achado no uso: com o
+> painel instalado na tela inicial do iPhone e fora do Wi-Fi, o iOS **não abre o
+> diálogo nativo de credencial** — mostra o corpo do 401 (a frase "Senha
+> necessaria.") e nada mais, sem campo e sem saída. Formulário funciona em
+> qualquer contexto. `curl -u :senha` continua valendo.
 
 Se você for acessar por um **nome** em vez de IP (o nome da máquina no Tailscale,
 por exemplo), acrescente-o à unidade: `--host-extra nome.seu-tailnet.ts.net`. O

@@ -683,6 +683,13 @@
 <footer>Gerado por english-tracker. O arquivo no Drive continua sendo a fonte da verdade.</footer>
 
 <script>
+  // Escopo do script inteiro de proposito: quem precisa disto e a deteccao de
+  // rede (um IIFE) e o modo interativo (outro bloco). Declarada dentro de um
+  // deles, ela nao existiria para o outro.
+  function irParaLogin() {
+    location.href = '/login?destino=' + encodeURIComponent(location.pathname);
+  }
+
   // ——— PWA: instalar e funcionar offline ———
   // O service worker só registra em contexto seguro (HTTPS ou localhost). Pelo
   // IP da rede em HTTP puro ele é ignorado pelo navegador, em silêncio — por
@@ -722,7 +729,13 @@
       // pedido so passa se houver servidor. Medir e mais confiavel que crer numa
       // flag do navegador.
       return fetch('/api/ping', {cache: 'no-store'})
-        .then(function (r) { marcar(!r.ok); })
+        .then(function (r) {
+          // 401 nao e falta de rede: o servidor esta de pe e a sessao venceu.
+          // Sem este desvio, o app mostraria a pagina do cache e cada botao
+          // falharia um por um, sem dizer o motivo.
+          if (r.status === 401) { irParaLogin(); return; }
+          marcar(!r.ok);
+        })
         .catch(function () { marcar(true); });
     }
 
@@ -758,7 +771,11 @@
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-Token': token},
         body: JSON.stringify(corpo || {})
-      }).then(function (r) { return r.json(); }).then(function (d) {
+      }).then(function (r) {
+        if (r.status === 401) { irParaLogin(); return null; }
+        return r.json();
+      }).then(function (d) {
+        if (!d) return;
         if (botao) { botao.disabled = false; botao.textContent = antes; }
         if (!d.ok) { avisar(d.erro || 'falhou', true); return; }
         var texto = d.mensagem || 'Pronto.';

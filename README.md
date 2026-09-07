@@ -381,8 +381,20 @@ printf 'uma-senha-longa' > ~/.english-tracker/senha && chmod 600 ~/.english-trac
 english-tracker serve --host 0.0.0.0 --com-senha --somente-leitura
 ```
 
-É HTTP Basic — o navegador pede usuário e senha sozinho, funciona em qualquer
-computador, sem instalar nada. A senha **nunca vem por argumento**: sai de
+É um **formulário de login com sessão em cookie**, e a razão de não ser HTTP
+Basic é concreta: app instalado na tela inicial do iOS não exibe o diálogo nativo
+de credencial — ele renderiza o corpo do 401, e o usuário fica olhando uma frase
+sem campo e sem botão. Formulário é HTML comum, aparece em qualquer contexto que
+saiba mostrar página. Basic continua aceito para a linha de comando
+(`curl -u :senha`), só deixou de ser o único caminho.
+
+A sessão vale 90 dias, mora na memória do processo (reiniciar o serviço desloga),
+e o cookie vai `HttpOnly`, `SameSite=Lax` e `Secure` quando a requisição chega por
+HTTPS — nunca `Secure` em HTTP puro, senão o navegador descartaria o cookie na
+LAN e o login pareceria quebrado. `GET /sair` encerra a sessão no servidor, não só
+no navegador.
+
+A senha **nunca vem por argumento**: sai de
 `ENGLISH_TRACKER_SENHA` ou de `~/.english-tracker/senha`, porque argv aparece no
 `ps` de qualquer processo da máquina e fica no histórico do shell. Há freio de
 força bruta: dez erros em cinco minutos e a origem trava, porque painel exposto é

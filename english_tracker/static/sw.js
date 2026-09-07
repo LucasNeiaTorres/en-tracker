@@ -8,7 +8,7 @@
 // Não se pré-carrega nada na instalação: as páginas exigem senha, e um addAll
 // que falhasse deixaria o service worker sem ativar. O cache se forma no uso.
 
-const CACHE = 'english-log-v1';
+const CACHE = 'english-log-v2';
 const RESERVA = '/';
 
 self.addEventListener('install', (evento) => {
@@ -35,12 +35,26 @@ self.addEventListener('fetch', (evento) => {
   // /api/ NUNCA passa por aqui. Resposta de API servida do cache é dado velho
   // com cara de atual — e, no caso do /api/ping, faria a página concluir que
   // está online justamente quando não está.
-  if (new URL(pedido.url).pathname.startsWith('/api/')) return;
+  const caminho = new URL(pedido.url).pathname;
+  if (caminho.startsWith('/api/')) return;
+
+  // A tela de login e a saída nunca entram no cache. Guardar a tela de login
+  // seria o pior defeito possível aqui: ela ficaria salva sob a chave da página
+  // que você pediu, e offline o app abriria um formulário que não tem servidor
+  // para responder — nenhuma saída.
+  if (caminho === '/login' || caminho === '/sair') return;
 
   evento.respondWith(
     fetch(pedido)
       .then((resposta) => {
-        if (resposta && resposta.status === 200 && resposta.type === 'basic') {
+        // `redirected` é a trava que importa: sessão expirada faz o servidor
+        // responder 303 para /login, o fetch segue o desvio e devolve 200 — que,
+        // guardado sem esta checagem, gravaria o formulário de login como se
+        // fosse o painel.
+        if (
+          resposta && resposta.status === 200 && resposta.type === 'basic'
+          && !resposta.redirected
+        ) {
           const copia = resposta.clone();
           caches.open(CACHE).then((c) => c.put(pedido, copia));
         }

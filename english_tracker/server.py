@@ -29,8 +29,9 @@ import threading
 import time
 import webbrowser
 from collections import defaultdict
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from . import analytics, config, drive, plan, prompt as prompt_mod, report as report_mod
 from .parser import (
@@ -69,6 +70,14 @@ LIMITE_CORPO = 256 * 1024
 MAX_TENTATIVAS = 10
 JANELA_TENTATIVAS = 300
 
+# Sessão por cookie, e não HTTP Basic, por um motivo concreto: **app instalado
+# na tela inicial do iPhone não exibe o diálogo nativo de Basic auth**. Ele
+# renderiza o corpo do 401, e o usuário vê a frase "Senha necessaria." e mais
+# nada — sem campo, sem botão, sem saída. Um formulário é HTML comum: aparece em
+# qualquer lugar que renderize página.
+COOKIE_SESSAO = "en_sessao"
+VALIDADE_SESSAO = 90 * 86400   # o plano dura 30 dias; relogar toda semana é atrito puro
+
 # Rotas que MUDAM algo — no log, no Drive ou na autorização. São elas que o modo
 # somente-leitura recusa, e são a razão de o painel não poder ser publicado na
 # internet aberta: o token que as protege é servido dentro da própria página.
@@ -99,6 +108,24 @@ class Estado:
         # Tentativas de senha por origem. Um painel exposto é varrido por robô em
         # horas; sem freio, a senha vira questão de tempo.
         self.tentativas: dict[str, list[float]] = defaultdict(list)
+        # Sessões válidas: token -> instante de criação. Em memória de propósito
+        # — reiniciar o serviço desloga todo mundo, o que é o comportamento
+        # seguro para um segredo que só existe enquanto o processo existe.
+        self.sessoes: dict[str, float] = {}
+
+    def abrir_sessao(self) -> str:
+        token = secrets.token_urlsafe(32)
+        self.sessoes[token] = time.time()
+        return token
+
+    def sessao_valida(self, token: str) -> bool:
+        nascimento = self.sessoes.get(token)
+        if nascimento is None:
+            return False
+        if time.time() - nascimento > VALIDADE_SESSAO:
+            self.sessoes.pop(token, None)
+            return False
+        return True
 
     def bloqueado(self, origem: str) -> bool:
         agora = time.time()
@@ -149,22 +176,46 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return any(host.endswith(s) for s in SUFIXOS_ACEITOS)
 
-    def _senha_ok(self) -> bool:
-        """HTTP Basic. Só entra em cena quando há senha configurada.
+    # --- senha e sessão -------------------------------------------------
 
-        A senha é a tranca do acesso remoto; o token continua sendo a tranca
-        contra outra aba do navegador. São coisas diferentes e ambas ficam.
+    def _https(self) -> bool:
+        """A requisição chegou por HTTPS? Decide o flag `Secure` do cookie.
+
+        Marcar `Secure` sempre quebraria o acesso pela LAN (`http://192.168...`),
+        onde o cookie simplesmente não seria guardado; nunca marcar entregaria a
+        sessão a quem estivesse no caminho. Atrás do `tailscale serve`, o proxy
+        informa o esquema original neste cabeçalho.
+        """
+        return (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
+
+    def _cookie_sessao(self) -> str:
+        cru = self.headers.get("Cookie")
+        if not cru:
+            return ""
+        try:
+            return SimpleCookie(cru).get(COOKIE_SESSAO).value  # type: ignore[union-attr]
+        except Exception:
+            return ""
+
+    def _autenticado(self) -> bool:
+        """Sessão por cookie, ou HTTP Basic — o segundo por causa do `curl`.
+
+        Basic continua aceito porque é o que permite verificar o serviço da linha
+        de comando (`curl -u :senha ...`) e o que um cliente sem cookie usaria.
+        O que mudou é que ele deixou de ser o *único* caminho, e o navegador
+        nunca mais é obrigado a exibir o diálogo nativo — que é justamente o que
+        não existe em app instalado no iOS.
         """
         if not self.estado.senha:
             return True
-
-        origem = self.client_address[0]
-        if self.estado.bloqueado(origem):
-            self._json({"ok": False, "erro": "tentativas demais — espere alguns minutos"}, 429)
-            return False
+        if self.estado.sessao_valida(self._cookie_sessao()):
+            return True
 
         cabecalho = self.headers.get("Authorization") or ""
         if cabecalho.startswith("Basic "):
+            origem = self.client_address[0]
+            if self.estado.bloqueado(origem):
+                return False
             try:
                 cru = base64.b64decode(cabecalho[6:]).decode("utf-8")
                 _, _, fornecida = cru.partition(":")
@@ -173,15 +224,102 @@ class Handler(BaseHTTPRequestHandler):
             if secrets.compare_digest(fornecida, self.estado.senha):
                 return True
             self.estado.errou(origem)
-
-        corpo = b"Senha necessaria."
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="english-tracker"')
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(corpo)))
-        self.end_headers()
-        self.wfile.write(corpo)
         return False
+
+    def _exige_senha(self) -> bool:
+        """Passou pela tranca? Se não, responde e devolve False.
+
+        A resposta muda com quem perguntou, e isso é o ponto: navegação vai para
+        o formulário (uma página que qualquer contexto sabe mostrar), API recebe
+        401 em JSON (o JavaScript trata; um redirecionamento só o confundiria).
+        """
+        if self._autenticado():
+            return True
+
+        caminho = urlparse(self.path).path
+        if self.estado.bloqueado(self.client_address[0]):
+            if caminho.startswith("/api/"):
+                self._json({"ok": False, "erro": "tentativas demais — espere alguns minutos"}, 429)
+            else:
+                self._html(report_mod.render_login(
+                    erro="Tentativas demais. Espere alguns minutos e tente de novo.",
+                    destino="/",
+                ), 429)
+            return False
+
+        if caminho.startswith("/api/"):
+            self._json({"ok": False, "erro": "sessão expirada — recarregue a página"}, 401)
+        else:
+            # `safe=""` de propósito: com a barra fora do escape, um caminho com
+            # `&` ou `#` dentro emendaria na query e o destino sairia truncado.
+            self._redireciona(
+                "/login?destino="
+                + quote(self._destino_seguro(self.path), safe="")
+            )
+        return False
+
+    def _destino_seguro(self, alvo: str) -> str:
+        """Só caminho interno. Sem isto, `/login?destino=https://...` viraria
+        um redirecionamento aberto — a página de login de um domínio confiável
+        empurrando a vítima para outro site depois de entrar."""
+        caminho = (alvo or "/").strip()
+        if not caminho.startswith("/") or caminho.startswith("//"):
+            return "/"
+        return caminho
+
+    def _redireciona(self, para: str, cookie: str = "") -> None:
+        self.send_response(303)
+        self.send_header("Location", para)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
+    def _login_get(self) -> None:
+        destino = self._destino_seguro(
+            (parse_qs(urlparse(self.path).query).get("destino") or ["/"])[0]
+        )
+        if self._autenticado():
+            self._redireciona(destino)
+            return
+        self._html(report_mod.render_login(destino=destino))
+
+    def _login_post(self) -> None:
+        origem = self.client_address[0]
+        tamanho = min(int(self.headers.get("Content-Length") or 0), LIMITE_CORPO)
+        campos = parse_qs(self.rfile.read(tamanho).decode("utf-8", "replace")) if tamanho else {}
+        destino = self._destino_seguro((campos.get("destino") or ["/"])[0])
+
+        if self.estado.bloqueado(origem):
+            self._html(report_mod.render_login(
+                erro="Tentativas demais. Espere alguns minutos e tente de novo.",
+                destino=destino,
+            ), 429)
+            return
+
+        fornecida = (campos.get("senha") or [""])[0]
+        if not secrets.compare_digest(fornecida, self.estado.senha):
+            self.estado.errou(origem)
+            self._html(report_mod.render_login(erro="Senha incorreta.", destino=destino), 401)
+            return
+
+        # `Secure` só sob HTTPS (ver _https). `SameSite=Lax` impede que um site
+        # externo use a sessão em requisição de escrita.
+        partes = [
+            f"{COOKIE_SESSAO}={self.estado.abrir_sessao()}",
+            "Path=/",
+            "HttpOnly",
+            "SameSite=Lax",
+            f"Max-Age={VALIDADE_SESSAO}",
+        ]
+        if self._https():
+            partes.append("Secure")
+        self._redireciona(destino, cookie="; ".join(partes))
+
+    def _sair(self) -> None:
+        self.estado.sessoes.pop(self._cookie_sessao(), None)
+        self._redireciona("/login", cookie=f"{COOKIE_SESSAO}=; Path=/; Max-Age=0")
 
     def _token_ok(self) -> bool:
         enviado = self.headers.get("X-Token") or ""
@@ -219,10 +357,19 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             self._json({"ok": False, "erro": "host não permitido"}, 403)
             return
-        if not self._senha_ok():
-            return
 
         caminho = urlparse(self.path).path
+        # O formulário e a saída ficam FORA da tranca — senão a página que pede a
+        # senha exigiria a senha para ser vista.
+        if caminho == "/login":
+            self._login_get()
+            return
+        if caminho == "/sair":
+            self._sair()
+            return
+        if not self._exige_senha():
+            return
+
         if caminho in ESTATICOS:
             self._estatico(*ESTATICOS[caminho])
         elif caminho in ("/", "/index.html"):
@@ -246,7 +393,14 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             self._json({"ok": False, "erro": "host não permitido"}, 403)
             return
-        if not self._senha_ok():
+
+        if urlparse(self.path).path == "/login":
+            if self.estado.senha:
+                self._login_post()
+            else:
+                self._redireciona("/")
+            return
+        if not self._exige_senha():
             return
 
         rotas = {
@@ -640,8 +794,8 @@ def servir(
             " — mas o modo somente leitura está ligado." if somente_leitura
             else ", inclusive escrevendo no seu Drive."), flush=True)
         if senha:
-            print("   Senha ligada (HTTP Basic) — mas ela só protege de verdade", flush=True)
-            print("   sobre HTTPS: em HTTP puro ela trafega legível na rede.", flush=True)
+            print("   Senha ligada (formulário em /login) — mas ela só protege", flush=True)
+            print("   de verdade sobre HTTPS: em HTTP puro ela trafega legível.", flush=True)
         else:
             print("   SEM SENHA: qualquer um que alcance esta porta entra.", flush=True)
         print("   Use isto só em rede privada, ou atrás de um túnel com TLS.", flush=True)

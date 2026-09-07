@@ -436,13 +436,22 @@ def _com_basic(base, rota, senha, corpo=None):
         return exc.code, exc.read().decode("utf-8")
 
 
-def test_sem_senha_o_painel_pede_autenticacao(servidor_com_senha):
-    status, _ = _com_basic(servidor_com_senha, "/", senha=None)
-    assert status == 401
+def test_sem_senha_o_painel_manda_para_o_login(servidor_com_senha):
+    """Navegação sem credencial vai para o formulário, não para um 401.
+
+    O detalhe do 303 não é gosto: app instalado na tela inicial do iOS não abre
+    o diálogo de Basic auth, mostra o corpo do 401 e trava ali. O fluxo completo
+    está em `test_login.py`.
+    """
+    status, corpo = _com_basic(servidor_com_senha, "/", senha=None)
+    assert status == 200, "o urllib segue o desvio e chega ao formulário"
+    assert 'type="password"' in corpo
 
 
 def test_senha_errada_e_recusada(servidor_com_senha):
-    assert _com_basic(servidor_com_senha, "/", senha="chute")[0] == 401
+    """Basic com senha errada não entra — e cai no formulário, não em texto cru."""
+    status, corpo = _com_basic(servidor_com_senha, "/", senha="chute")
+    assert status == 200 and 'type="password"' in corpo
 
 
 def test_senha_certa_abre_o_painel(servidor_com_senha):
@@ -463,7 +472,7 @@ def test_tentativas_demais_travam_a_origem(servidor_com_senha):
         _com_basic(servidor_com_senha, "/", senha="chute")
     status, corpo = _com_basic(servidor_com_senha, "/", senha="abre-te-sesamo")
     assert status == 429, "depois do limite, nem a senha certa passa na hora"
-    assert "tentativas demais" in corpo
+    assert "Tentativas demais" in corpo
 
 
 def test_ao_ouvir_na_rede_o_proprio_ip_e_aceito(tmp_path, monkeypatch):
