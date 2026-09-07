@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import base64
 import json
+import pathlib
 import secrets
 import threading
 import time
@@ -51,6 +52,17 @@ HOSTS_LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 # longo numa unidade do systemd, e digitar errado ali dá "host não permitido"
 # sem explicação.
 SUFIXOS_ACEITOS = (".ts.net",)
+
+# Arquivos servidos como estão, da pasta do pacote. O service worker PRECISA vir
+# da raiz: servido de /static/, ele só controlaria /static/, e o painel ficaria
+# fora do escopo dele.
+ESTATICOS = {
+    "/manifest.json": ("manifest.json", "application/manifest+json"),
+    "/sw.js": ("sw.js", "text/javascript"),
+    "/icon-192.png": ("icon-192.png", "image/png"),
+    "/icon-512.png": ("icon-512.png", "image/png"),
+}
+PASTA_ESTATICOS = pathlib.Path(__file__).parent / "static"
 LIMITE_CORPO = 256 * 1024
 
 # Freio de força bruta na senha: 10 erros em 5 minutos e a origem para.
@@ -118,6 +130,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *args) -> None:  # silencia o log de acesso
         pass
+
+    def handle_one_request(self) -> None:
+        """Cliente que desiste no meio não é defeito, e não deve virar rastro.
+
+        Acontece toda vez que a página é abandonada ou o pedido é abortado por
+        falta de rede — comum no celular. Sem isto, o journal do serviço enche de
+        BrokenPipeError com pilha inteira, o que parece falha grave e não é.
+        """
+        try:
+            super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
 
     def _host_ok(self) -> bool:
         host = (self.headers.get("Host") or "").split(":")[0].strip("[]").lower()
@@ -199,7 +223,9 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         caminho = urlparse(self.path).path
-        if caminho in ("/", "/index.html"):
+        if caminho in ESTATICOS:
+            self._estatico(*ESTATICOS[caminho])
+        elif caminho in ("/", "/index.html"):
             self._painel()
         elif caminho in ("/cards", "/cards.html"):
             self._cards()
@@ -207,6 +233,10 @@ class Handler(BaseHTTPRequestHandler):
             self._semana()
         elif caminho == "/api/prompt":
             self._api(self._prompt)
+        elif caminho == "/api/ping":
+            # Sem token de propósito: é o pedido que a página usa para saber se
+            # há servidor do outro lado, e ele não revela nada além disso.
+            self._json({"ok": True})
         elif caminho == "/api/saude":
             self._api(self._saude)
         else:
@@ -253,6 +283,24 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(acao())
         except Exception as exc:  # o servidor não cai por causa de uma ação
             self._json({"ok": False, "erro": f"{type(exc).__name__}: {exc}"}, 500)
+
+    def _estatico(self, nome: str, tipo: str) -> None:
+        arquivo = PASTA_ESTATICOS / nome
+        if not arquivo.exists():
+            self._json({"ok": False, "erro": f"{nome} não encontrado"}, 404)
+            return
+        corpo = arquivo.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", tipo)
+        self.send_header("Content-Length", str(len(corpo)))
+        # O service worker não pode ficar preso em cache do navegador, senão uma
+        # correção nele nunca chega. Os ícones podem.
+        if nome.endswith(".js") or nome.endswith(".json"):
+            self.send_header("Cache-Control", "no-cache")
+        else:
+            self.send_header("Cache-Control", "max-age=86400")
+        self.end_headers()
+        self.wfile.write(corpo)
 
     def _painel(self) -> None:
         rep, resultado = self.estado.carregar()

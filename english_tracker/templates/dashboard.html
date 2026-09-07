@@ -1,3 +1,9 @@
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1E2B31">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -407,6 +413,19 @@
     .tally b { font-size: 1.9rem; }
   }
 
+  /* ——— aviso de offline ——— */
+  .offline {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--ink); color: var(--sheet);
+    font-size: .82rem; padding: .55rem 1rem; margin: -1rem -1rem 1.2rem;
+    display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap;
+  }
+  /* `display:flex` numa classe vence o `[hidden]` da folha do navegador, e o
+     aviso aparecia mesmo escondido. Esta linha devolve o comportamento. */
+  .offline[hidden] { display: none !important; }
+  .offline b { font-weight: 700; }
+  .offline span { opacity: .8; }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
@@ -414,6 +433,11 @@
 </head>
 <body>
 <main class="sheet">
+
+  <p class="offline" id="aviso-offline" hidden>
+    <b>Sem rede.</b>
+    <span>Isto é o último estado carregado. As ações voltam quando a conexão voltar.</span>
+  </p>
 
   <h1>English log</h1>
   <p class="meta">
@@ -427,19 +451,19 @@
     {% if pacote.estado != 'ok' %}
     <div class="pendencia">
       <span class="txt"><b>Semana no Drive</b>{{ pacote.texto }}</span>
-      <button class="publicar-semana">Publicar a semana</button>
+      <button class="publicar-semana" data-precisa-rede>Publicar a semana</button>
     </div>
     {% else %}
     <div class="pendencia boa">
       <span class="txt"><b>Semana no Drive</b>{{ pacote.texto }}</span>
-      <button class="publicar-semana">Republicar</button>
+      <button class="publicar-semana" data-precisa-rede>Republicar</button>
     </div>
     {% endif %}
   </div>
 
   <div class="bar" data-token="{{ token }}">
-    <button id="acao-pull" data-rota="/api/pull">Puxar do Drive</button>
-    <button id="acao-push" data-rota="/api/push">Enviar ao Drive</button>
+    <button id="acao-pull" data-rota="/api/pull" data-precisa-rede>Puxar do Drive</button>
+    <button id="acao-push" data-rota="/api/push" data-precisa-rede>Enviar ao Drive</button>
     <button id="acao-reload">Atualizar</button>
     <button id="acao-cards">Flashcards</button>
     <button id="acao-semana">A semana</button>
@@ -454,7 +478,7 @@
           <label for="add-dia">Dia</label>
           <input type="number" id="add-dia" min="1" max="{{ plan_total }}"
                  value="{{ report.next_day or '' }}">
-          <button type="submit" id="acao-add">Registrar</button>
+          <button type="submit" id="acao-add" data-precisa-rede>Registrar</button>
         </div>
         <textarea id="add-texto" placeholder="Cole o resumo do professor. Se não estiver no formato, o texto é guardado como prosa e nada se perde."></textarea>
       </div>
@@ -659,6 +683,62 @@
 <footer>Gerado por english-tracker. O arquivo no Drive continua sendo a fonte da verdade.</footer>
 
 <script>
+  // ——— PWA: instalar e funcionar offline ———
+  // O service worker só registra em contexto seguro (HTTPS ou localhost). Pelo
+  // IP da rede em HTTP puro ele é ignorado pelo navegador, em silêncio — por
+  // isso o aviso abaixo, para não parecer que instalou quando não instalou.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function (e) {
+      console.info('service worker não registrado (precisa de HTTPS):', e);
+    });
+  }
+
+  // Offline, a página abre do cache: o que se vê é o último estado carregado, e
+  // as ações precisam do servidor. Dizer isso é melhor que deixar o clique
+  // falhar calado.
+  //
+  // A deteccao NAO usa navigator.onLine: essa flag diz "existe interface de
+  // rede", nao "o servidor responde" — verificado, ela continua true com a rede
+  // desligada. Entao se MEDE: um pedido curto que so passa se houver servidor
+  // do outro lado.
+  (function () {
+    var barra = document.getElementById('aviso-offline');
+    if (!barra) return;
+
+    function marcar(offline) {
+      barra.hidden = !offline;
+      // Só o que fala com o servidor. "Flashcards", "A semana" e "Atualizar" são
+      // navegação — as páginas estão em cache e abrem offline, então travá-las
+      // seria bloquear o que funciona.
+      document.querySelectorAll('[data-precisa-rede]')
+        .forEach(function (b) {
+          b.disabled = offline;
+          b.title = offline ? 'sem rede: as acoes precisam do servidor' : '';
+        });
+    }
+
+    function medir() {
+      // /api/ping: o service worker nao intercepta nada sob /api/, entao este
+      // pedido so passa se houver servidor. Medir e mais confiavel que crer numa
+      // flag do navegador.
+      return fetch('/api/ping', {cache: 'no-store'})
+        .then(function (r) { marcar(!r.ok); })
+        .catch(function () { marcar(true); });
+    }
+
+    window.addEventListener('online', medir);
+    window.addEventListener('offline', function () { marcar(true); });
+    // No celular o caso comum e voltar para o app depois de andar: o evento
+    // `online` pode nao ter disparado, mas a rede voltou. Medir ao ganhar foco
+    // cobre isso sem esperar o intervalo.
+    window.addEventListener('focus', medir);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) medir();
+    });
+    medir();
+    setInterval(medir, 30000);
+  })();
+
   // ——— modo interativo: as ações do terminal, sem terminal ———
   var bar = document.querySelector('.bar');
   if (bar) {
@@ -707,6 +787,7 @@
       div.appendChild(span);
       if (rotulo) {
         var bt = document.createElement('button');
+        bt.setAttribute('data-precisa-rede', '');
         bt.textContent = rotulo;
         bt.addEventListener('click', function () { aoClicar(bt); });
         div.appendChild(bt);

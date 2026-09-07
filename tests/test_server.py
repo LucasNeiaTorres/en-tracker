@@ -549,3 +549,76 @@ def test_host_do_tailscale_e_aceito_sem_configuracao(servidor):
     # e o que não é do tailnet continua barrado
     assert chamar(servidor, "/", host="evil.example.com")[0] == 403
     assert chamar(servidor, "/", host="ts.net.evil.com")[0] == 403, "sufixo, não substring"
+
+
+# ——— PWA: instalável e offline ———
+
+def test_estaticos_da_pwa_sao_servidos(servidor):
+    esperado = {
+        "/manifest.json": "application/manifest+json",
+        "/sw.js": "text/javascript",
+        "/icon-192.png": "image/png",
+        "/icon-512.png": "image/png",
+    }
+    for rota, tipo in esperado.items():
+        req = urllib.request.Request(servidor + rota)
+        req.add_header("X-Token", TOKEN)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            assert r.status == 200, rota
+            assert r.headers["Content-Type"] == tipo, rota
+            assert len(r.read()) > 100, rota
+
+
+def test_service_worker_nao_pode_ser_cacheado_pelo_navegador(servidor):
+    """Correção no service worker que fica presa em cache não chega a ninguém."""
+    req = urllib.request.Request(servidor + "/sw.js")
+    req.add_header("X-Token", TOKEN)
+    with urllib.request.urlopen(req, timeout=10) as r:
+        assert "no-cache" in (r.headers["Cache-Control"] or "")
+
+
+def test_ping_responde_sem_token(servidor):
+    """É o pedido que a página usa para saber se há servidor: não pode depender
+    de token, porque a página cacheada pode ter um token de outra execução."""
+    status, corpo = chamar(servidor, "/api/ping", token=None)
+    assert status == 200
+    assert json.loads(corpo)["ok"] is True
+
+
+def test_service_worker_nao_intercepta_api_nem_cai_para_a_raiz(servidor):
+    """As duas regras que fizeram a detecção de offline funcionar."""
+    req = urllib.request.Request(servidor + "/sw.js")
+    req.add_header("X-Token", TOKEN)
+    with urllib.request.urlopen(req, timeout=10) as r:
+        sw = r.read().decode("utf-8")
+    assert "startsWith('/api/')" in sw, "resposta de API não pode vir do cache"
+    assert "mode === 'navigate'" in sw, "a reserva vale só para navegação"
+
+
+def test_painel_registra_o_service_worker_e_mede_a_rede(servidor):
+    _, html = chamar(servidor, "/")
+    assert 'rel="manifest"' in html
+    assert "serviceWorker" in html and "/sw.js" in html
+    assert "aviso-offline" in html
+    assert "/api/ping" in html, "a detecção mede; não confia em navigator.onLine"
+
+
+def test_offline_trava_acoes_mas_nao_navegacao(servidor):
+    """As páginas ficam em cache e abrem offline: travá-las bloquearia o que funciona."""
+    _, html = chamar(servidor, "/")
+    import re
+
+    def tem_marca(id_ou_classe):
+        padrao = rf'<button[^>]*{id_ou_classe}[^>]*>'
+        achado = re.search(padrao, html)
+        assert achado, f"botão {id_ou_classe} não encontrado"
+        return "data-precisa-rede" in achado.group(0)
+
+    # falam com o servidor
+    assert tem_marca('id="acao-pull"')
+    assert tem_marca('id="acao-push"')
+    assert tem_marca('class="publicar-semana"')
+    # só navegam ou recarregam
+    assert not tem_marca('id="acao-cards"')
+    assert not tem_marca('id="acao-semana"')
+    assert not tem_marca('id="acao-reload"')

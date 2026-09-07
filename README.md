@@ -309,6 +309,35 @@ opcional: a CLI continua completa sem ele, e o `report` continua gerando um
 arquivo inerte, que você pode guardar ou mandar por e-mail sem botões que não
 funcionariam.
 
+### Instalar no celular, e usar offline
+
+O painel é uma PWA: com HTTPS, o navegador oferece "adicionar à tela inicial" e
+ele passa a abrir em tela cheia, com ícone próprio — e **abre sem rede**,
+mostrando o último estado carregado.
+
+![O painel offline: aviso no topo, ações travadas, o resto navegável](docs/offline.png)
+
+O HTTPS não é detalhe: navegador **só registra service worker em contexto
+seguro**, e pelo IP da rede em HTTP puro ele é ignorado em silêncio. O caminho
+curto é `tailscale serve --https=443 localhost:8765`.
+
+Três decisões dentro disso:
+
+**Rede primeiro, cache como reserva.** O painel mostra estado que muda; servir
+cache primeiro exibiria número velho com cara de atual — a mentira que este
+projeto evita em todo lugar. Offline, cai para a última versão carregada.
+
+**A detecção de offline mede, não confia.** `navigator.onLine` diz "existe
+interface de rede", não "o servidor responde" — verificado: ela continua `true`
+com a rede desligada. Então a página faz um `GET /api/ping`, que o service worker
+não intercepta (nada sob `/api/` é cacheado), e mede de novo ao voltar para o app
+— que no celular é o caso comum.
+
+**Offline, só as ações travam.** "Puxar do Drive", "Enviar ao Drive" e
+"Publicar a semana" ficam desabilitadas, com o motivo no `title`. Navegação
+(Flashcards, A semana, Atualizar) continua livre, porque essas páginas estão em
+cache e abrem — travá-las bloquearia o que funciona.
+
 ### Ver o painel de outro computador
 
 O padrão é `127.0.0.1`: só esta máquina alcança. Para ver de outro lugar existem
@@ -705,6 +734,10 @@ english_tracker/
   templates/
     dashboard.html   o painel: folha de chamada, revisão, erros, próxima sessão
     cards.html       a tela de flashcards, com verso e os três botões
+  static/
+    manifest.json  a PWA: nome, ícones, tela cheia
+    sw.js          service worker: rede primeiro, cache como reserva
+    icon-*.png     o ícone (a célula da folha de chamada, riscada)
     semana.html      os próximos dias, para levar ao celular
 contrib/         timer do systemd que publica o pacote sozinho
 tests/
@@ -767,7 +800,7 @@ pip install -e ".[dev]"
 python -m pytest tests/ -q
 ```
 
-171 testes, em nove arquivos:
+179 testes, em nove arquivos:
 
 | Arquivo | O que protege |
 |---|---|

@@ -27,7 +27,7 @@ include = ["english_tracker*"]
 # O template Jinja tem de ir no wheel, senão `report` quebra em instalação
 # não-editável.
 [tool.setuptools.package-data]
-english_tracker = ["templates/*.html"]
+english_tracker = ["templates/*.html", "static/*"]
 
 [build-system]
 requires = ["setuptools>=68"]
