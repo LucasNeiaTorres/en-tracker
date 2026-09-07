@@ -435,8 +435,8 @@
 <main class="sheet">
 
   <p class="offline" id="aviso-offline" hidden>
-    <b>Sem rede.</b>
-    <span>Isto é o último estado carregado. As ações voltam quando a conexão voltar.</span>
+    <b id="offline-titulo">Sem rede.</b>
+    <span id="offline-texto">Isto é o último estado carregado. As ações voltam quando a conexão voltar.</span>
   </p>
 
   <h1>English log</h1>
@@ -712,8 +712,31 @@
     var barra = document.getElementById('aviso-offline');
     if (!barra) return;
 
-    function marcar(offline) {
+    var tituloAviso = document.getElementById('offline-titulo');
+    var textoAviso = document.getElementById('offline-texto');
+
+    // Duas causas diferentes, com saidas diferentes: sem sinal, esperar resolve;
+    // servico caido, esperar nao resolve nada. Dizer "sem rede" nas duas faria o
+    // painel mentir sobre o que a pessoa precisa fazer.
+    var CAUSAS = {
+      rede: [
+        'Sem rede.',
+        'Isto e o ultimo estado carregado. As acoes voltam quando a conexao voltar.'
+      ],
+      servidor: [
+        'O painel nao esta respondendo.',
+        'A maquina esta alcancavel, mas o servico caiu. Isto e o ultimo estado '
+          + 'carregado; esperar nao resolve — o servico precisa ser reiniciado.'
+      ]
+    };
+
+    function marcar(offline, causa) {
       barra.hidden = !offline;
+      if (offline) {
+        var texto = CAUSAS[causa] || CAUSAS.rede;
+        tituloAviso.textContent = texto[0];
+        textoAviso.textContent = texto[1];
+      }
       // Só o que fala com o servidor. "Flashcards", "A semana" e "Atualizar" são
       // navegação — as páginas estão em cache e abrem offline, então travá-las
       // seria bloquear o que funciona.
@@ -734,13 +757,17 @@
           // Sem este desvio, o app mostraria a pagina do cache e cada botao
           // falharia um por um, sem dizer o motivo.
           if (r.status === 401) { irParaLogin(); return; }
-          marcar(!r.ok);
+          // 5xx = alcancou o servidor e ele esta quebrado. E o caso do proxy de
+          // pe com o servico do painel parado, que nao se distingue de falta de
+          // rede pelo resultado, mas se distingue pelo que fazer a respeito.
+          if (r.status >= 500) { marcar(true, 'servidor'); return; }
+          marcar(!r.ok, 'rede');
         })
-        .catch(function () { marcar(true); });
+        .catch(function () { marcar(true, 'rede'); });
     }
 
     window.addEventListener('online', medir);
-    window.addEventListener('offline', function () { marcar(true); });
+    window.addEventListener('offline', function () { marcar(true, 'rede'); });
     // No celular o caso comum e voltar para o app depois de andar: o evento
     // `online` pode nao ter disparado, mas a rede voltou. Medir ao ganhar foco
     // cobre isso sem esperar o intervalo.

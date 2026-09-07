@@ -604,6 +604,32 @@ def test_service_worker_nao_intercepta_api_nem_cai_para_a_raiz(servidor):
     assert "mode === 'navigate'" in sw, "a reserva vale só para navegação"
 
 
+def test_service_worker_cai_para_o_cache_quando_o_servidor_responde_erro(servidor):
+    """O caso que não se distingue de "servidor desligado" pela sensação, mas se
+    distingue pelo resultado.
+
+    Servidor DESLIGADO: a conexão falha, o `fetch` rejeita, o `.catch` serve o
+    cache — funcionava. Servidor LIGADO com o serviço do painel caído: o proxy
+    responde 502, o `fetch` RESOLVE, e o `.catch` nunca dispara. Medido num
+    navegador de verdade: aparecia "502 Bad Gateway" e mais nada, com o painel
+    inteiro sentado no cache do lado.
+    """
+    req = urllib.request.Request(servidor + "/sw.js")
+    req.add_header("X-Token", TOKEN)
+    with urllib.request.urlopen(req, timeout=10) as r:
+        sw = r.read().decode("utf-8")
+    assert "status >= 500" in sw, "erro do servidor tem de cair para o cache"
+
+
+def test_o_aviso_separa_falta_de_rede_de_servico_caido(servidor):
+    """Esperar resolve uma das duas e não resolve a outra: dizer "sem rede" nas
+    duas faria o painel mentir sobre o que a pessoa precisa fazer."""
+    _, html = chamar(servidor, "/")
+    assert "offline-titulo" in html and "offline-texto" in html
+    assert "status >= 500" in html, "a página também precisa reconhecer o 5xx"
+    assert "servico caiu" in html
+
+
 def test_painel_registra_o_service_worker_e_mede_a_rede(servidor):
     _, html = chamar(servidor, "/")
     assert 'rel="manifest"' in html

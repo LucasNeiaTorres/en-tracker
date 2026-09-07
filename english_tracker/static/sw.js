@@ -8,7 +8,7 @@
 // Não se pré-carrega nada na instalação: as páginas exigem senha, e um addAll
 // que falhasse deixaria o service worker sem ativar. O cache se forma no uso.
 
-const CACHE = 'english-log-v2';
+const CACHE = 'english-log-v3';
 const RESERVA = '/';
 
 self.addEventListener('install', (evento) => {
@@ -57,6 +57,19 @@ self.addEventListener('fetch', (evento) => {
         ) {
           const copia = resposta.clone();
           caches.open(CACHE).then((c) => c.put(pedido, copia));
+        }
+
+        // Servidor ALCANÇADO mas quebrado (502 do proxy quando o serviço do
+        // painel caiu, 503, 500). Isto não é falha de rede, então o `.catch`
+        // abaixo nunca dispara — e sem este ramo a pessoa recebia a página de
+        // erro crua do proxy no lugar do painel que estava em cache. Medido:
+        // com a máquina ligada e o serviço parado, o app mostrava só
+        // "502 Bad Gateway". Vale para NAVEGAÇÃO; um recurso que falha deve
+        // falhar, senão todo erro vira sucesso.
+        if (resposta && resposta.status >= 500 && pedido.mode === 'navigate') {
+          return caches.match(pedido)
+            .then((r) => r || caches.match(RESERVA))
+            .then((r) => r || resposta);
         }
         return resposta;
       })

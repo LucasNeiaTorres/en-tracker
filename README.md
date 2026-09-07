@@ -321,7 +321,7 @@ O HTTPS não é detalhe: navegador **só registra service worker em contexto
 seguro**, e pelo IP da rede em HTTP puro ele é ignorado em silêncio. O caminho
 curto é `tailscale serve --https=443 localhost:8765`.
 
-Três decisões dentro disso:
+Quatro decisões dentro disso:
 
 **Rede primeiro, cache como reserva.** O painel mostra estado que muda; servir
 cache primeiro exibiria número velho com cara de atual — a mentira que este
@@ -337,6 +337,14 @@ não intercepta (nada sob `/api/` é cacheado), e mede de novo ao voltar para o 
 "Publicar a semana" ficam desabilitadas, com o motivo no `title`. Navegação
 (Flashcards, A semana, Atualizar) continua livre, porque essas páginas estão em
 cache e abrem — travá-las bloquearia o que funciona.
+
+**"Sem rede" e "o servidor quebrou" não são a mesma coisa.** Servidor
+desligado: a conexão falha, o `fetch` rejeita, o cache entra. Servidor ligado
+com o serviço do painel caído: o proxy responde 502, o `fetch` **resolve**, e o
+tratamento de falha nunca dispara — a versão anterior mostrava "502 Bad Gateway"
+com o painel inteiro sentado no cache do lado. Medido num navegador de verdade,
+não deduzido. Agora um 5xx em navegação também cai para o cache, e o aviso no
+topo diz qual dos dois é: esperar resolve um e não resolve o outro.
 
 ### Ver o painel de outro computador
 
