@@ -534,3 +534,18 @@ def test_remove_confere_o_drive_antes_de_apagar(tmp_path, monkeypatch):
         "o dia que só existia no Drive teria sido apagado junto"
     )
     assert "DIA 01" not in enviado["texto"]
+
+
+def test_host_do_tailscale_e_aceito_sem_configuracao(servidor):
+    """Com `tailscale serve`, o Host chega como <maquina>.<tailnet>.ts.net.
+
+    Exigir que o usuário registre esse nome numa unidade do systemd é convite a
+    erro de digitação — e o sintoma é "host não permitido", sem explicação. O
+    espaço `.ts.net` é da Tailscale e resolve só dentro do tailnet, então não
+    serve para o ataque que esta checagem barra.
+    """
+    assert chamar(servidor, "/", host="lucasneia-340xaa.tail1234.ts.net")[0] == 200
+    assert chamar(servidor, "/", host="QUALQUER-COISA.TS.NET")[0] == 200, "sem caso"
+    # e o que não é do tailnet continua barrado
+    assert chamar(servidor, "/", host="evil.example.com")[0] == 403
+    assert chamar(servidor, "/", host="ts.net.evil.com")[0] == 403, "sufixo, não substring"

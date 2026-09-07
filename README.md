@@ -333,7 +333,9 @@ english-tracker serve --host 0.0.0.0 --host-extra note.seu-tailnet.ts.net --some
   aviso.
 - `--host-extra` acrescenta nomes aceitos no cabeçalho `Host`. A checagem
   continua valendo fora de loopback: é a defesa contra um site externo resolver
-  um domínio para o seu IP privado.
+  um domínio para o seu IP privado. Hosts terminados em **`.ts.net`** (Tailscale)
+  são aceitos sem configuração — nomes desse espaço resolvem só dentro do seu
+  tailnet, e portanto não servem ao ataque que a checagem barra.
 - `--somente-leitura` mostra o painel inteiro e **recusa toda rota que muda
   algo** — log, Drive e autorização. É a trava certa para o acesso remoto: ver de
   qualquer lugar, agir só onde o log e o token moram.

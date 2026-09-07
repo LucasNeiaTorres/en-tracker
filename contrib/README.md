@@ -228,12 +228,35 @@ Tudo pode ser feito dos dois lados: registrar sessão, apagar dia, preencher ver
 publicar a semana. As escritas comuns são por **fusão** (nada se perde se as duas
 máquinas agirem), e a única que substitui — apagar dia — confere o Drive antes.
 
-### Para abrir de fora da sua rede
+### Para abrir de fora da sua rede (e ter HTTPS)
 
-Use **Tailscale** (grátis, uso pessoal): instale nas duas pontas, e o endereço
-passa a ser o nome da máquina no seu tailnet, sem expor nada na internet. Se
-precisar mesmo de URL pública, veja a seção "Ver o painel de outro computador"
-do `README.md` — e nunca sem autenticação na frente.
+**Tailscale** (grátis para uso pessoal): instale no servidor e no celular, com a
+mesma conta, e o painel passa a ser alcançável de qualquer lugar **sem nada
+exposto na internet**.
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+tailscale serve --https=443 localhost:8765
+tailscale serve status        # mostra a URL final, com certificado válido
+```
+
+A URL fica `https://<maquina>.<tailnet>.ts.net`, sem porta. **Nada a configurar
+no painel:** qualquer host terminado em `.ts.net` é aceito automaticamente — esse
+espaço de nomes é da Tailscale e resolve só dentro do seu tailnet, então não
+serve para o ataque que a checagem de `Host` barra.
+
+O HTTPS daqui não é detalhe estético: **é o que permite instalar o painel como
+app no celular** (PWA), porque navegador só registra *service worker* em contexto
+seguro. E é o que faz a senha parar de trafegar legível.
+
+Se o certificado não sair, habilite *HTTPS Certificates* na seção **DNS** do
+admin do Tailscale — costuma ser automático, mas em alguns tailnets é preciso
+ligar uma vez.
+
+Com o `tailscale serve` na frente, o painel pode até deixar de ouvir na rede
+local (`--host 127.0.0.1`): só o tailnet o alcança. O custo é perder o acesso
+pelo IP de casa.
 
 ---
 

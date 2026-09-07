@@ -42,6 +42,15 @@ from .parser import (
 )
 
 HOSTS_LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+# Sufixos de host aceitos sem configuração. `.ts.net` é o espaço de nomes da
+# Tailscale: esses nomes são geridos por ela e resolvem apenas dentro do seu
+# tailnet, então um atacante não consegue apontar um `.ts.net` para a sua
+# máquina — que é exatamente o ataque (DNS rebinding) que a checagem de Host
+# existe para barrar. Aceitá-los em bloco poupa o usuário de digitar um nome
+# longo numa unidade do systemd, e digitar errado ali dá "host não permitido"
+# sem explicação.
+SUFIXOS_ACEITOS = (".ts.net",)
 LIMITE_CORPO = 256 * 1024
 
 # Freio de força bruta na senha: 10 erros em 5 minutos e a origem para.
@@ -111,8 +120,10 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def _host_ok(self) -> bool:
-        host = (self.headers.get("Host") or "").split(":")[0].strip("[]")
-        return host in self.estado.hosts
+        host = (self.headers.get("Host") or "").split(":")[0].strip("[]").lower()
+        if host in self.estado.hosts:
+            return True
+        return any(host.endswith(s) for s in SUFIXOS_ACEITOS)
 
     def _senha_ok(self) -> bool:
         """HTTP Basic. Só entra em cena quando há senha configurada.
@@ -536,7 +547,7 @@ def servir(
     # de loopback, os próprios endereços e o nome desta máquina entram na lista.
     # A checagem continua barrando Host estranho, que é o que ela existe para
     # barrar (um site externo resolvendo um domínio dele para este IP privado).
-    aceitos = set(hosts_extra or []) | {host}
+    aceitos = {h.lower() for h in (hosts_extra or [])} | {host}
     if host not in HOSTS_LOOPBACK:
         import socket
 
@@ -587,6 +598,7 @@ def servir(
             print("   SEM SENHA: qualquer um que alcance esta porta entra.", flush=True)
         print("   Use isto só em rede privada, ou atrás de um túnel com TLS.", flush=True)
         print(f"   Hosts aceitos no cabeçalho: {', '.join(sorted(Handler.estado.hosts))}", flush=True)
+        print(f"   e qualquer um terminado em: {', '.join(SUFIXOS_ACEITOS)}", flush=True)
         print(flush=True)
 
     if abrir and host in HOSTS_LOOPBACK:
