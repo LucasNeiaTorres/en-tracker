@@ -90,11 +90,21 @@ def test_prompt_tecnico_traz_a_trilha_da_semana():
     assert "Mensageria" in texto
 
 
-def test_prompt_pede_escrita_no_drive_com_formato_exato():
+def test_prompt_manda_imprimir_o_bloco_e_nao_confia_no_drive():
+    """A instrução principal é IMPRIMIR o bloco, não salvá-lo.
+
+    O acesso do Gemini ao Drive é de leitura — verificado na documentação do
+    Google em 2026-09-07, e relatado pelo próprio Gemini ao Lucas. Um prompt que
+    manda salvar, e só isso, produz um dia perdido cada vez que o modelo não
+    consegue. Escrever no Drive continua no texto, mas como extra condicional.
+    """
     texto = prompt.build(3, relatorio(), drive_file="meu-log")
     assert "meu-log" in texto
     assert "DIA 03" in texto
-    assert "cannot write to Drive" in texto
+    assert "PRINT the summary block" in texto, "imprimir é a instrução principal"
+    assert "the day is lost" in texto, "o modelo tem de saber o custo de omitir"
+    assert "read-only" in texto, "dizer ao modelo que não conseguir é o esperado"
+    assert "claiming you saved something you did not save" in texto
 
 
 def test_plano_esta_integro():
@@ -146,6 +156,9 @@ def test_prompt_leva_a_data_resolvida():
 
 
 def test_prompt_exige_acrescentar_sem_reescrever():
-    """A IA que escreve o arquivo pode substituí-lo em vez de acrescentar."""
+    """A IA que ESCREVE o arquivo (quando alguma conseguir) pode substituí-lo em
+    vez de acrescentar — e aí o log inteiro vira o dia de hoje. A exigência
+    continua no texto mesmo agora que a escrita é opcional: ela vale para
+    qualquer assistente que tenha a ferramenta, não só para o Gemini."""
     texto = prompt.build(3, relatorio())
     assert "Never replace or rewrite" in texto

@@ -12,12 +12,21 @@
 > the file, and shows the difference. On top of that log it derives a spaced
 > repetition schedule (calendar-based, denser intervals for pronunciation),
 > generates the next day's prompt, and publishes a week of prompts to Drive so the
-> phone works with the laptop turned off. Python 3.10+, four dependencies, 151
+> phone works with the laptop turned off. Python 3.10+, four dependencies, 196
 > tests, no database.
 
-Painel do plano de inglês de 30 dias. Lê o arquivo `english-log` que um tutor de
-IA escreve no Google Drive, mostra o que está acontecendo e gera o prompt da
-próxima sessão já com o histórico embutido.
+Painel do plano de inglês de 30 dias. Lê o arquivo `english-log` no Google Drive,
+mostra o que está acontecendo e gera o prompt da próxima sessão já com o
+histórico embutido.
+
+Quem escreve nesse arquivo é **você**, colando no painel o bloco que o tutor
+imprime ao fim da aula — e não o tutor. Verificado em 2026-09-07: o acesso do
+Gemini ao Drive é **de leitura**; ele lê e resume, sabe exportar um documento
+novo, e não edita arquivo existente. Não é uma permissão que se conceda, é
+limite do produto. Por isso o prompt manda **imprimir** o bloco (a instrução
+principal, incondicional) e só escrever no Drive se houver ferramenta para
+tanto — e por isso o campo de registro é a primeira coisa no painel, não uma
+gaveta de exceção.
 
 ---
 

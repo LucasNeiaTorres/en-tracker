@@ -82,7 +82,7 @@ Tag grammar mistakes with [gram] and wrong-word/meaning mistakes with [lex].
 {mode_block}
 7. At the end of the session, do BOTH of these:
    - Say out loud: my top mistakes, 5 words or expressions to review, and a one-line brutal (but funny) rating of my performance.
-   - Append that summary to the END of the Google Drive file called "{drive_file}", keeping every line that is already in the file. Never replace or rewrite the existing content. Use exactly this format:
+   - PRINT the summary block below as plain text in the chat, so I can copy it. Do this every single time, no exceptions - this block is the only record of the session, and if you do not print it the day is lost. Print it raw, not inside a table or a rewritten prose version. Use exactly this format:
 
      DIA {day:02d} - {date_hint} - Tipo: {kind} - Tema: {topic}
      Erros: [pron] <mispronounced word>; [gram] <grammar mistake>; [lex] <wrong word: what I said vs what I meant>
@@ -110,7 +110,13 @@ Tag grammar mistakes with [gram] and wrong-word/meaning mistakes with [lex].
    away, an item I missed comes back sooner. Guessing here corrupts the schedule,
    so leave a dash rather than inventing.
 
-   If you cannot write to Drive, say so explicitly out loud instead of pretending you did.
+   If - and only if - you have a tool that can APPEND to the Google Drive file
+   called "{drive_file}", do that too, keeping every line that is already in the
+   file. Never replace or rewrite the existing content. Most assistants cannot: Gemini's
+   Drive access is read-only. That is fine and expected. What is NOT acceptable is
+   skipping the printed block, or claiming you saved something you did not save.
+   If you tried and could not write, say so out loud in one line and print the
+   block anyway.
 
 Today - day {day}, type {kind_label}, topic: {topic}
 {track_block}{history_block}{focus_block}

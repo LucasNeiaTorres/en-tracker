@@ -338,7 +338,11 @@
   dialog#detalhe .aviso-apagar { font-size: .8rem; color: var(--pen); flex-basis: 100%; margin: 0; }
 
   form.registrar { margin: 0 0 1.5rem; }
-  form.registrar summary { font-size: .85rem; color: var(--pencil); cursor: pointer; }
+  form.registrar summary { font-size: .85rem; color: var(--ink); cursor: pointer; font-weight: 500; }
+  form.registrar .nota-registro {
+    font-size: .82rem; line-height: 1.5; color: var(--pencil);
+    margin: 0; border-left: 2px solid var(--rule); padding-left: .7rem;
+  }
   form.registrar .campos { display: flex; flex-direction: column; gap: .5rem; margin-top: .8rem; }
   form.registrar textarea {
     font-family: ui-monospace, monospace;
@@ -471,9 +475,14 @@
   </div>
 
   <form class="registrar" id="form-add" onsubmit="return false;">
-    <details>
-      <summary>Registrar sessão à mão (quando o professor não salvou)</summary>
+    <details open>
+      <summary>Registrar a sessão de hoje — cole aqui o bloco do professor</summary>
       <div class="campos">
+        <p class="nota-registro">
+          É assim que o dia entra no log: o professor <b>imprime</b> o bloco no
+          fim da aula, você cola aqui, e o painel grava e envia ao Drive. O
+          Gemini não salva sozinho — o acesso dele ao Drive é só de leitura.
+        </p>
         <div class="linha">
           <label for="add-dia">Dia</label>
           <input type="number" id="add-dia" min="1" max="{{ plan_total }}"
